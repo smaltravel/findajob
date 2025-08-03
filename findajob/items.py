@@ -2,10 +2,15 @@
 
 import scrapy
 
+
 class LinkedInJobItem(scrapy.Item):
-    title = scrapy.Field()
-    company = scrapy.Field()
-    location = scrapy.Field()
-    description = scrapy.Field()
-    salary = scrapy.Field()
-    url = scrapy.Field()
+    job_title = scrapy.Field()
+    employer = scrapy.Field()
+    job_location = scrapy.Field()
+    job_description = scrapy.Field()
+    employment_type = scrapy.Field()
+    job_function = scrapy.Field()
+    seniority_level = scrapy.Field()
+    job_url = scrapy.Field()
+    employer_url = scrapy.Field()
+    industries = scrapy.Field()
