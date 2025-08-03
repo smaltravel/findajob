@@ -3,3 +3,6 @@
 
 # ignore python files
 __pycache__/
+
+# ignore crawler results
+*.jsonl
