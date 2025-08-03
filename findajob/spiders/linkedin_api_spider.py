@@ -25,15 +25,12 @@ class LinkedInSpider(scrapy.Spider):
             'start': 0,
         }
 
-    def __compose_url(self, url: str):
-        return f'{url}?{urlencode(self.__params)}'
-
     async def start(self):
         """
         The initial entry point for the spider. It constructs the search URL
         using the keywords and location, then sends a request to LinkedIn.
         """
-        url = self.__compose_url(self.base_search_url)
+        url = f'{self.base_search_url}?{urlencode(self.__params)}'
         self.log(f"Starting request for URL: {url}")
         yield scrapy.Request(
             url=url,
@@ -60,9 +57,6 @@ class LinkedInSpider(scrapy.Spider):
                 cnt += 1
                 self.log(f"Found job ID: {job_id}")
 
-                # Update request parameters
-                self.__params['currentJobId'] = job_id
-
                 # Yield a request to process the job card with the ID
                 yield scrapy.Request(f'{self.base_job_url}{job_id}', callback=self.parse_job)
 
@@ -87,23 +81,27 @@ class LinkedInSpider(scrapy.Spider):
         yield data
 
     @staticmethod
+    def __parse_line(line: str):
+        return ' '.join(l.rstrip() for l in line.split() if len(l) > 0)
+
+    @staticmethod
     def __parse_job_header(card):
         job_a = card.xpath('//div/div[1]/div/a')
         employer_div = card.xpath('//div/div[1]/div/h4/div[1]')
         return {
-            'job_title': job_a.css('h2::text').get().rstrip(),
-            'job_url': job_a.css('a::attr(href)').get().rstrip(),
-            'job_location': employer_div.css('span.topcard__flavor--bullet::text').get().rstrip(),
-            'employer': employer_div.css('a.topcard__org-name-link::text').get().rstrip(),
-            'employer_url': employer_div.css('a.topcard__org-name-link::attr(href)').get().rstrip(),
+            'job_title': LinkedInSpider.__parse_line(job_a.css('h2::text').get()),
+            'job_url': LinkedInSpider.__parse_line(job_a.css('a::attr(href)').get()),
+            'job_location': LinkedInSpider.__parse_line(employer_div.css('span.topcard__flavor--bullet::text').get()),
+            'employer': LinkedInSpider.__parse_line(employer_div.css('a.topcard__org-name-link::text').get()),
+            'employer_url': LinkedInSpider.__parse_line(employer_div.css('a.topcard__org-name-link::attr(href)').get()),
         }
 
     @staticmethod
     def __parse_job_summary(card):
         return {
-            'job_description': card.css('div.show-more-less-html__markup').get().rstrip(),
-            'seniority_level': card.xpath('//section[1]/div/ul/li[1]/span/text()').get().rstrip(),
-            'employment_type': card.xpath('//section[1]/div/ul/li[2]/span/text()').get().rstrip(),
-            'job_function': card.xpath('//section[1]/div/ul/li[3]/span/text()').get().rstrip(),
-            'industries': card.xpath('//section[1]/div/ul/li[4]/span/text()').get().rstrip(),
+            'job_description': LinkedInSpider.__parse_line(card.css('div.show-more-less-html__markup').get()),
+            'seniority_level': LinkedInSpider.__parse_line(card.xpath('//section[1]/div/ul/li[1]/span/text()').get()),
+            'employment_type': LinkedInSpider.__parse_line(card.xpath('//section[1]/div/ul/li[2]/span/text()').get()),
+            'job_function': LinkedInSpider.__parse_line(card.xpath('//section[1]/div/ul/li[3]/span/text()').get()),
+            'industries': LinkedInSpider.__parse_line(card.xpath('//section[1]/div/ul/li[4]/span/text()').get()),
         }
