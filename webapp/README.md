@@ -1,14 +1,15 @@
 # Job Application Manager
 
-A Vue.js application with Scrapy integration for automated LinkedIn job crawling and application management, featuring a SQLite database for persistent job storage.
+A Vue.js application with Scrapy integration for automated LinkedIn job crawling and application management, featuring a SQLite database for persistent job storage and Ollama AI for intelligent content generation.
 
 ## Features
 
 - **Workflow Management**: Automated job search pipeline with real-time status updates
 - **LinkedIn Integration**: Scrapy spider for crawling job listings from LinkedIn
 - **SQLite Database**: Persistent storage of crawled jobs with full CRUD operations
-- **Application Management**: Track job applications with status management
-- **AI-Generated Content**: Automated CV and cover letter generation
+- **AI-Powered Processing**: Ollama integration for intelligent job analysis and content generation
+- **Application Management**: Track job applications with comprehensive status management
+- **AI-Generated Content**: Automated CV and cover letter generation tailored to each job
 - **Responsive Design**: Modern UI built with Vue.js and Tailwind CSS
 
 ## Prerequisites
@@ -16,6 +17,7 @@ A Vue.js application with Scrapy integration for automated LinkedIn job crawling
 - Node.js (v16 or higher)
 - Python (v3.8 or higher)
 - pip (Python package manager)
+- Ollama (for AI processing) - [Install Ollama](https://ollama.ai/)
 
 ## Installation
 
@@ -38,11 +40,25 @@ A Vue.js application with Scrapy integration for automated LinkedIn job crawling
    pip install -r requirements.txt
    ```
 
+4. **Install and configure Ollama:**
+
+   ```bash
+   # Install Ollama (follow instructions at https://ollama.ai/)
+   # Pull a model (e.g., llama3.2)
+   ollama pull llama3.2
+   ```
+
 ## Running the Application
 
 ### Development Mode
 
-1. **Start the Flask backend API:**
+1. **Start Ollama (required for AI processing):**
+
+   ```bash
+   ollama serve
+   ```
+
+2. **Start the Flask backend API:**
 
    ```bash
    npm run backend
@@ -50,7 +66,7 @@ A Vue.js application with Scrapy integration for automated LinkedIn job crawling
 
    This will start the Flask server on `http://localhost:5000` and automatically create the SQLite database
 
-2. **Start the Vue.js frontend:**
+3. **Start the Vue.js frontend:**
 
    ```bash
    npm run dev
@@ -58,7 +74,7 @@ A Vue.js application with Scrapy integration for automated LinkedIn job crawling
 
    This will start the Vite development server on `http://localhost:8080`
 
-3. **Open your browser** and navigate to `http://localhost:8080`
+4. **Open your browser** and navigate to `http://localhost:8080`
 
 ### Production Build
 
@@ -95,8 +111,8 @@ CREATE TABLE jobs (
     seniority_level TEXT,
     industries TEXT,
     status TEXT NOT NULL CHECK (status IN ('new', 'user_rejected', 'filter_rejected', 'applied', 'interview_scheduled', 'interview_completed', 'offer_received', 'offer_accepted', 'offer_rejected', 'not_answered', 'employer_rejected')),
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_modified DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 ```
 
@@ -105,9 +121,33 @@ CREATE TABLE jobs (
 - **Automatic Creation**: Database and tables are created automatically on first run
 - **Indexed Queries**: Optimized for fast job retrieval and status filtering
 - **Duplicate Prevention**: Jobs are deduplicated based on LinkedIn job ID
-- **Search Tracking**: Keywords and location are stored with each job for reference
-- **Status Management**: Track application status (new, applied, rejected)
+- **Status Management**: Track application status with comprehensive workflow states
 - **Timestamps**: Automatic creation and update timestamps
+
+## Pipeline Workflow
+
+The application implements a 4-stage pipeline for job processing:
+
+### Stage 1: Job Search
+- Crawls LinkedIn for job listings using Scrapy
+- Extracts job details and metadata
+- Stores jobs in SQLite database
+
+### Stage 2: Data Collection & Filtering
+- Gathers jobs from database with status 'new'
+- Filters and prepares data for AI processing
+- Validates job data integrity
+
+### Stage 3: AI Processing (Ollama)
+- Sends job data to Ollama AI for analysis
+- Generates short job descriptions
+- Creates updated CV sections tailored to each job
+- Generates personalized cover letters
+
+### Stage 4: Application Tile Generation
+- Combines job data with AI-generated content
+- Creates application tiles for the frontend
+- Makes jobs available for user interaction
 
 ## Usage
 
@@ -115,17 +155,17 @@ CREATE TABLE jobs (
 
 1. **Enter Keywords**: Type job keywords (e.g., "Python Developer", "React")
 2. **Enter Location**: Specify the location (e.g., "San Francisco, CA")
-3. **Click "Start Workflow"**: The system will begin crawling LinkedIn for job listings
+3. **Click "Start Workflow"**: The system will begin the 4-stage pipeline
 
 ### Workflow Stages
 
 The application shows real-time progress through these stages:
 
 1. **Job Search**: Crawling LinkedIn for job listings
-2. **Data Collection**: Collecting detailed job information
-3. **Data Processing**: Processing and organizing the data
-4. **Data Analysis**: Analyzing job requirements and descriptions
-5. **Results Export**: Making jobs available in the applications section
+2. **Data Collection**: Gathering and filtering job data
+3. **Data Processing**: Processing with AI (Ollama)
+4. **Data Analysis**: Analyzing and preparing data
+5. **Results Export**: Generating application tiles
 
 ### Managing Applications
 
@@ -133,7 +173,7 @@ The application shows real-time progress through these stages:
 - **Apply/Reject**: Use the modal dialog to apply or reject jobs
 - **Bulk Actions**: Select multiple jobs for bulk operations
 - **Sorting**: Sort jobs by title, employer, or status
-- **Status Tracking**: Track applications as New, Applied, or Rejected
+- **Status Tracking**: Track applications through comprehensive workflow states
 
 ## API Endpoints
 
@@ -154,9 +194,13 @@ The application shows real-time progress through these stages:
 - `DELETE /api/jobs/bulk-delete`: Bulk delete jobs
 - `GET /api/stats`: Get job statistics
 
+### AI Integration
+
+- `GET /api/ollama-status`: Check Ollama service status
+
 ### Query Parameters
 
-- `status`: Filter by job status (new, applied, rejected)
+- `status`: Filter by job status (new, applied, rejected, etc.)
 - `limit`: Number of jobs to return (default: 100)
 - `offset`: Pagination offset (default: 0)
 
@@ -190,9 +234,35 @@ The application integrates with a Scrapy spider located in `../findajob/spiders/
 
 - **Automatic Storage**: Jobs are automatically saved to the database
 - **Duplicate Prevention**: Prevents storing the same job multiple times
-- **Search Tracking**: Associates jobs with search keywords and location
 - **Status Management**: Sets initial status as 'new'
 - **Performance Indexing**: Creates indexes for fast queries
+
+## AI Integration (Ollama)
+
+The application integrates with Ollama for intelligent job processing:
+
+### AI Features
+
+- **Job Analysis**: Analyzes job descriptions and requirements
+- **Content Generation**: Creates tailored CV sections and cover letters
+- **Smart Summaries**: Generates concise job descriptions
+- **Personalization**: Adapts content to specific job requirements
+
+### Ollama Configuration
+
+- **Model**: Uses `llama3.2` by default (configurable in `backend.py`)
+- **API Endpoint**: `http://localhost:11434`
+- **Timeout**: 30 seconds per job processing
+- **Error Handling**: Graceful fallback if AI processing fails
+
+### Supported Models
+
+Any Ollama model can be used by changing the `OLLAMA_MODEL` variable in `backend.py`:
+- llama3.2
+- llama3.1
+- codellama
+- mistral
+- gemma
 
 ## Data Flow
 
@@ -200,9 +270,12 @@ The application integrates with a Scrapy spider located in `../findajob/spiders/
 2. Frontend validates inputs and calls API
 3. Backend starts Scrapy spider with parameters
 4. Spider crawls LinkedIn and saves results to SQLite database
-5. Backend reads results from database and updates status
+5. Backend processes pipeline stages:
+   - Gathers and filters new jobs
+   - Sends jobs to Ollama for AI processing
+   - Generates application tiles with AI content
 6. Frontend polls status and updates UI
-7. When complete, jobs are loaded from database and displayed
+7. When complete, application tiles are displayed
 8. Users can manage jobs with full CRUD operations
 
 ## Troubleshooting
@@ -214,12 +287,20 @@ The application integrates with a Scrapy spider located in `../findajob/spiders/
 3. **Scrapy errors**: Check that the findajob directory exists and has proper Scrapy setup
 4. **CORS errors**: Ensure the Flask-CORS extension is properly installed
 5. **Port conflicts**: Change ports in `backend.py` if port 5000 is in use
+6. **Ollama not responding**: Ensure Ollama is running and accessible at `http://localhost:11434`
 
 ### Database Issues
 
 1. **Database locked**: Ensure no other process is accessing the database
 2. **Permission errors**: Check file permissions for the webapp directory
 3. **Corrupted database**: Delete `jobs.db` and restart the backend to recreate it
+
+### AI Processing Issues
+
+1. **Ollama not running**: Start Ollama with `ollama serve`
+2. **Model not found**: Pull the required model with `ollama pull llama3.2`
+3. **Processing timeout**: Increase timeout in `backend.py` or use a faster model
+4. **API errors**: Check Ollama logs and ensure the model is loaded
 
 ### Debug Mode
 

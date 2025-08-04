@@ -250,8 +250,36 @@ const getStatusClass = (status) => {
 // Watch for crawled jobs and refresh the list
 watch(() => props.crawledJobs, (newJobs) => {
   if (newJobs && newJobs.length > 0) {
-    // Refresh the job list from database
-    loadJobs()
+    // Add new application tiles to the beginning of the list
+    newJobs.forEach(job => {
+      const newApplication = {
+        id: job.id,
+        job_id: job.job_id,
+        title: job.title,
+        employer: job.employer,
+        description: job.description,
+        status: job.status,
+        fullDescription: job.full_description,
+        urls: job.urls,
+        cv: job.cv,
+        coverLetter: job.cover_letter,
+        location: job.location,
+        employmentType: job.employment_type,
+        seniorityLevel: job.seniority_level,
+        jobFunction: job.job_function,
+        industries: job.industries,
+        created_at: job.created_at,
+        processed_at: job.processed_at
+      }
+      
+      // Check if job already exists to avoid duplicates
+      const existingIndex = applications.value.findIndex(app => app.id === job.id)
+      if (existingIndex === -1) {
+        applications.value.unshift(newApplication) // Add to beginning
+      }
+    })
+    
+    // Emit event to notify parent that jobs have been processed
     emit('jobs-processed', newJobs.length)
   }
 }, { deep: true })

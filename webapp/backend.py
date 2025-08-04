@@ -8,6 +8,7 @@ import tempfile
 import threading
 import time
 import sqlite3
+import requests
 from datetime import datetime
 
 app = Flask(__name__)
@@ -19,18 +20,22 @@ crawling_status = {
     'progress': 0,
     'message': '',
     'jobs_found': 0,
-    'current_stage': 'idle'
+    'current_stage': 'idle',
+    'pipeline_stage': 0
 }
 
 # Database path
 DB_PATH = os.path.join(os.path.dirname(__file__), 'jobs.db')
+
+# Ollama configuration
+OLLAMA_BASE_URL = 'http://localhost:11434'
+OLLAMA_MODEL = 'llama3.2'  # or your preferred model
 
 def get_db_connection():
     """Create a database connection"""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row  # This enables column access by name
     return conn
-
 
 def run_scrapy_spider(keywords, location):
     """Run the Scrapy spider with given parameters"""
@@ -42,7 +47,8 @@ def run_scrapy_spider(keywords, location):
             'progress': 0,
             'message': 'Starting LinkedIn job search...',
             'jobs_found': 0,
-            'current_stage': 'searching'
+            'current_stage': 'searching',
+            'pipeline_stage': 1
         })
         
         # Change to the findajob directory
@@ -78,42 +84,17 @@ def run_scrapy_spider(keywords, location):
         stdout, stderr = process.communicate()
         
         if process.returncode == 0:
-            # Read results from database
-            try:
-                conn = get_db_connection()
-                cursor = conn.cursor()
-                
-                # Get jobs from the latest crawl
-                cursor.execute('''
-                    SELECT * FROM jobs 
-                    WHERE keywords = ? AND location = ? 
-                    AND created_at >= datetime('now', '-1 hour')
-                    ORDER BY created_at DESC
-                ''', (keywords, location))
-                
-                jobs_data = []
-                for row in cursor.fetchall():
-                    job_dict = dict(row)
-                    jobs_data.append(job_dict)
-                
-                conn.close()
-                
-                crawling_status.update({
-                    'is_running': False,
-                    'progress': 100,
-                    'message': f'Successfully found {len(jobs_data)} jobs',
-                    'jobs_found': len(jobs_data),
-                    'current_stage': 'completed',
-                    'results': jobs_data
-                })
-                
-            except Exception as e:
-                crawling_status.update({
-                    'is_running': False,
-                    'progress': 100,
-                    'message': f'Error reading results: {str(e)}',
-                    'current_stage': 'error'
-                })
+            crawling_status.update({
+                'is_running': True,
+                'progress': 100,
+                'message': 'Job crawling completed. Starting data processing...',
+                'current_stage': 'completed',
+                'pipeline_stage': 1
+            })
+            
+            # Start the next pipeline steps
+            process_pipeline_steps(keywords, location)
+            
         else:
             crawling_status.update({
                 'is_running': False,
@@ -129,6 +110,251 @@ def run_scrapy_spider(keywords, location):
             'message': f'Error running spider: {str(e)}',
             'current_stage': 'error'
         })
+
+def process_pipeline_steps(keywords, location):
+    """Process the pipeline steps after crawling"""
+    global crawling_status
+    
+    try:
+        # Step 2: Gather and filter data
+        crawling_status.update({
+            'pipeline_stage': 2,
+            'message': 'Gathering and filtering job data...',
+            'progress': 0
+        })
+        
+        new_jobs = gather_and_filter_jobs()
+        
+        if not new_jobs:
+            crawling_status.update({
+                'is_running': False,
+                'message': 'No new jobs found to process.',
+                'current_stage': 'completed'
+            })
+            return
+        
+        crawling_status.update({
+            'jobs_found': len(new_jobs),
+            'progress': 25,
+            'message': f'Found {len(new_jobs)} new jobs. Processing with AI...'
+        })
+        
+        # Step 3: Process with AI
+        crawling_status.update({
+            'pipeline_stage': 3,
+            'message': 'Generating AI content for jobs...',
+            'progress': 50
+        })
+        
+        processed_jobs = process_jobs_with_ai(new_jobs)
+        
+        # Step 4: Generate application tiles
+        crawling_status.update({
+            'pipeline_stage': 4,
+            'message': 'Generating application tiles...',
+            'progress': 75
+        })
+        
+        application_tiles = generate_application_tiles(processed_jobs)
+        
+        # Complete pipeline
+        crawling_status.update({
+            'is_running': False,
+            'progress': 100,
+            'message': f'Pipeline completed! Generated {len(application_tiles)} application tiles.',
+            'current_stage': 'completed',
+            'pipeline_stage': 4,
+            'results': application_tiles
+        })
+        
+    except Exception as e:
+        crawling_status.update({
+            'is_running': False,
+            'progress': 100,
+            'message': f'Pipeline error: {str(e)}',
+            'current_stage': 'error'
+        })
+
+def gather_and_filter_jobs():
+    """Step 2: Gather and filter jobs with status 'new'"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get all jobs with status 'new'
+        cursor.execute('''
+            SELECT * FROM jobs 
+            WHERE status = 'new'
+            ORDER BY create_time DESC
+        ''')
+        
+        jobs = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        
+        return jobs
+        
+    except Exception as e:
+        print(f"Error gathering jobs: {e}")
+        return []
+
+def process_jobs_with_ai(jobs):
+    """Step 3: Process jobs with Ollama AI"""
+    processed_jobs = []
+    
+    for i, job in enumerate(jobs):
+        try:
+            # Update progress
+            progress = 50 + (i / len(jobs)) * 25
+            crawling_status.update({
+                'progress': int(progress),
+                'message': f'Processing job {i+1}/{len(jobs)} with AI...'
+            })
+            
+            # Generate AI content
+            ai_content = generate_ai_content(job)
+            
+            # Combine job data with AI content
+            processed_job = {
+                **job,
+                'ai_short_description': ai_content.get('short_description', ''),
+                'ai_updated_cv': ai_content.get('updated_cv', ''),
+                'ai_cover_letter': ai_content.get('cover_letter', ''),
+                'processed_at': datetime.now().isoformat()
+            }
+            
+            processed_jobs.append(processed_job)
+            
+            # Small delay to avoid overwhelming the AI
+            time.sleep(0.5)
+            
+        except Exception as e:
+            print(f"Error processing job {job.get('id', 'unknown')}: {e}")
+            # Continue with other jobs even if one fails
+            continue
+    
+    return processed_jobs
+
+def generate_ai_content(job):
+    """Generate AI content for a job using Ollama"""
+    try:
+        # Prepare the prompt for the AI
+        prompt = f"""
+        Based on the following job posting, please provide:
+
+        1. A short description (2-3 sentences) summarizing the key requirements and responsibilities
+        2. An updated CV section highlighting relevant experience for this specific job
+        3. A personalized cover letter
+
+        Job Title: {job.get('job_title', 'Unknown')}
+        Company: {job.get('employer', 'Unknown')}
+        Location: {job.get('job_location', 'Unknown')}
+        Employment Type: {job.get('employment_type', 'Unknown')}
+        Seniority Level: {job.get('seniority_level', 'Unknown')}
+        Job Function: {job.get('job_function', 'Unknown')}
+        Industries: {job.get('industries', 'Unknown')}
+        
+        Job Description:
+        {job.get('job_description', 'No description available')}
+
+        Please format your response as JSON with the following structure:
+        {{
+            "short_description": "Brief summary of the job",
+            "updated_cv": "Relevant CV section for this job",
+            "cover_letter": "Personalized cover letter"
+        }}
+        """
+        
+        # Call Ollama API
+        response = requests.post(
+            f'{OLLAMA_BASE_URL}/api/generate',
+            json={
+                'model': OLLAMA_MODEL,
+                'prompt': prompt,
+                'stream': False
+            },
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            ai_response = result.get('response', '')
+            
+            # Try to parse JSON response
+            try:
+                # Extract JSON from the response (AI might include extra text)
+                start_idx = ai_response.find('{')
+                end_idx = ai_response.rfind('}') + 1
+                if start_idx != -1 and end_idx != 0:
+                    json_str = ai_response[start_idx:end_idx]
+                    ai_content = json.loads(json_str)
+                    return ai_content
+                else:
+                    # Fallback if JSON parsing fails
+                    return {
+                        'short_description': ai_response[:200] + '...' if len(ai_response) > 200 else ai_response,
+                        'updated_cv': 'CV section generated by AI',
+                        'cover_letter': ai_response
+                    }
+            except json.JSONDecodeError:
+                # Fallback if JSON parsing fails
+                return {
+                    'short_description': ai_response[:200] + '...' if len(ai_response) > 200 else ai_response,
+                    'updated_cv': 'CV section generated by AI',
+                    'cover_letter': ai_response
+                }
+        else:
+            print(f"Ollama API error: {response.status_code}")
+            return {
+                'short_description': 'AI processing failed',
+                'updated_cv': 'CV section unavailable',
+                'cover_letter': 'Cover letter unavailable'
+            }
+            
+    except Exception as e:
+        print(f"Error generating AI content: {e}")
+        return {
+            'short_description': 'AI processing failed',
+            'updated_cv': 'CV section unavailable',
+            'cover_letter': 'Cover letter unavailable'
+        }
+
+def generate_application_tiles(processed_jobs):
+    """Step 4: Generate application tiles from processed jobs"""
+    application_tiles = []
+    
+    for job in processed_jobs:
+        tile = {
+            'id': job.get('id'),
+            'job_id': job.get('job_id'),
+            'title': job.get('job_title'),
+            'employer': job.get('employer'),
+            'location': job.get('job_location'),
+            'description': job.get('ai_short_description', job.get('job_description', '')),
+            'status': 'new',
+            'full_description': job.get('job_description'),
+            'urls': [
+                {
+                    'name': 'LinkedIn Job Posting',
+                    'url': job.get('job_url', '#')
+                },
+                {
+                    'name': 'Company Profile',
+                    'url': job.get('employer_url', '#')
+                }
+            ],
+            'cv': job.get('ai_updated_cv', ''),
+            'cover_letter': job.get('ai_cover_letter', ''),
+            'employment_type': job.get('employment_type'),
+            'seniority_level': job.get('seniority_level'),
+            'job_function': job.get('job_function'),
+            'industries': job.get('industries'),
+            'created_at': job.get('create_time'),
+            'processed_at': job.get('processed_at')
+        }
+        
+        application_tiles.append(tile)
+    
+    return application_tiles
 
 @app.route('/api/start-workflow', methods=['POST'])
 def start_workflow():
@@ -187,7 +413,8 @@ def reset_workflow():
         'progress': 0,
         'message': '',
         'jobs_found': 0,
-        'current_stage': 'idle'
+        'current_stage': 'idle',
+        'pipeline_stage': 0
     }
     return jsonify({'message': 'Workflow reset successfully'})
 
@@ -211,7 +438,7 @@ def get_jobs():
             query += ' AND status = ?'
             params.append(status)
         
-        query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?'
+        query += ' ORDER BY create_time DESC LIMIT ? OFFSET ?'
         params.extend([limit, offset])
         
         cursor.execute(query, params)
@@ -266,7 +493,11 @@ def update_job_status(job_id):
         data = request.get_json()
         status = data.get('status')
         
-        if status not in ['new', 'applied', 'rejected']:
+        valid_statuses = ['new', 'user_rejected', 'filter_rejected', 'applied', 'interview_scheduled', 
+                         'interview_completed', 'offer_received', 'offer_accepted', 'offer_rejected', 
+                         'not_answered', 'employer_rejected']
+        
+        if status not in valid_statuses:
             return jsonify({'error': 'Invalid status'}), 400
         
         conn = get_db_connection()
@@ -274,7 +505,7 @@ def update_job_status(job_id):
         
         cursor.execute('''
             UPDATE jobs 
-            SET status = ?, updated_at = CURRENT_TIMESTAMP 
+            SET status = ?, last_modified = CURRENT_TIMESTAMP 
             WHERE id = ?
         ''', (status, job_id))
         
@@ -322,7 +553,11 @@ def bulk_update_jobs():
         if not job_ids:
             return jsonify({'error': 'No job IDs provided'}), 400
         
-        if status not in ['new', 'applied', 'rejected']:
+        valid_statuses = ['new', 'user_rejected', 'filter_rejected', 'applied', 'interview_scheduled', 
+                         'interview_completed', 'offer_received', 'offer_accepted', 'offer_rejected', 
+                         'not_answered', 'employer_rejected']
+        
+        if status not in valid_statuses:
             return jsonify({'error': 'Invalid status'}), 400
         
         conn = get_db_connection()
@@ -332,7 +567,7 @@ def bulk_update_jobs():
         placeholders = ','.join(['?' for _ in job_ids])
         cursor.execute(f'''
             UPDATE jobs 
-            SET status = ?, updated_at = CURRENT_TIMESTAMP 
+            SET status = ?, last_modified = CURRENT_TIMESTAMP 
             WHERE id IN ({placeholders})
         ''', [status] + job_ids)
         
@@ -399,7 +634,7 @@ def get_stats():
         # Get recent jobs count (last 24 hours)
         cursor.execute('''
             SELECT COUNT(*) FROM jobs 
-            WHERE created_at >= datetime('now', '-1 day')
+            WHERE create_time >= datetime('now', '-1 day')
         ''')
         recent_count = cursor.fetchone()[0]
         
@@ -413,6 +648,21 @@ def get_stats():
         
     except Exception as e:
         return jsonify({'error': f'Database error: {str(e)}'}), 500
+
+@app.route('/api/ollama-status', methods=['GET'])
+def check_ollama_status():
+    """Check if Ollama is running and accessible"""
+    try:
+        response = requests.get(f'{OLLAMA_BASE_URL}/api/tags', timeout=5)
+        if response.status_code == 200:
+            return jsonify({
+                'status': 'running',
+                'models': response.json().get('models', [])
+            })
+        else:
+            return jsonify({'status': 'error', 'message': 'Ollama not responding'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': f'Ollama not accessible: {str(e)}'})
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000) 

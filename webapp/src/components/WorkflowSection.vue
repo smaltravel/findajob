@@ -12,6 +12,7 @@ const workflowStatus = ref('idle')
 const workflowProgress = ref(0)
 const workflowMessage = ref('')
 const jobsFound = ref(0)
+const pipelineStage = ref(0)
 const statusInterval = ref(null)
 
 // Pipeline stages data
@@ -92,42 +93,44 @@ const updateWorkflowStatus = (status) => {
   workflowProgress.value = status.progress
   workflowMessage.value = status.message
   jobsFound.value = status.jobs_found
+  pipelineStage.value = status.pipeline_stage || 0
   
   // Update pipeline stages based on status
   if (status.current_stage === 'searching') {
     updateStageStatus(1, 'in-progress')
   } else if (status.current_stage === 'completed') {
-    updateStageStatus(1, 'finished-success')
-    updateStageStatus(2, 'in-progress')
-    // Simulate data collection completion
-    setTimeout(() => {
+    // Handle pipeline stages
+    if (status.pipeline_stage >= 1) {
+      updateStageStatus(1, 'finished-success')
+    }
+    
+    if (status.pipeline_stage >= 2) {
       updateStageStatus(2, 'finished-success')
-      updateStageStatus(3, 'in-progress')
-      // Simulate data processing completion
-      setTimeout(() => {
-        updateStageStatus(3, 'finished-success')
-        updateStageStatus(4, 'in-progress')
-        // Simulate data analysis completion
-        setTimeout(() => {
-          updateStageStatus(4, 'finished-success')
-          updateStageStatus(5, 'in-progress')
-          // Simulate results export completion
-          setTimeout(() => {
-            updateStageStatus(5, 'finished-success')
-            workflowStarted.value = false
-            workflowMessage.value = `Workflow completed! Found ${jobsFound.value} jobs.`
-            stopStatusPolling()
-            
-            // Emit workflow completion with crawled jobs
-            if (status.results) {
-              emit('workflow-completed', status.results)
-            }
-          }, 1000)
-        }, 1000)
-      }, 1000)
-    }, 1000)
+    }
+    
+    if (status.pipeline_stage >= 3) {
+      updateStageStatus(3, 'finished-success')
+    }
+    
+    if (status.pipeline_stage >= 4) {
+      updateStageStatus(4, 'finished-success')
+      updateStageStatus(5, 'finished-success')
+      workflowStarted.value = false
+      workflowMessage.value = `Pipeline completed! Generated ${jobsFound.value} application tiles.`
+      stopStatusPolling()
+      
+      // Emit workflow completion with results
+      if (status.results) {
+        emit('workflow-completed', status.results)
+      }
+    }
   } else if (status.current_stage === 'error') {
-    updateStageStatus(1, 'finished-failed')
+    // Mark current stage as failed
+    if (pipelineStage.value > 0) {
+      updateStageStatus(pipelineStage.value, 'finished-failed')
+    } else {
+      updateStageStatus(1, 'finished-failed')
+    }
     workflowStarted.value = false
     workflowMessage.value = `Workflow failed: ${status.message}`
     stopStatusPolling()
@@ -150,7 +153,29 @@ const stopStatusPolling = () => {
 
 const viewLogs = (stageId, status) => {
   console.log(`Viewing logs for stage ${stageId} (${status})`)
-  alert(`Viewing logs for Stage ${stageId} - ${status}`)
+  
+  let logMessage = ''
+  switch (stageId) {
+    case 1:
+      logMessage = 'Job Search Stage:\n- Crawled LinkedIn for job listings\n- Extracted job details and metadata\n- Stored jobs in database'
+      break
+    case 2:
+      logMessage = 'Data Collection Stage:\n- Gathered jobs from database\n- Filtered jobs with status "new"\n- Prepared data for AI processing'
+      break
+    case 3:
+      logMessage = 'Data Processing Stage:\n- Sent job data to Ollama AI\n- Generated short descriptions\n- Created updated CV sections\n- Generated personalized cover letters'
+      break
+    case 4:
+      logMessage = 'Data Analysis Stage:\n- Analyzed AI-generated content\n- Validated job requirements\n- Prepared application data'
+      break
+    case 5:
+      logMessage = 'Results Export Stage:\n- Generated application tiles\n- Combined job data with AI content\n- Made jobs available for application'
+      break
+    default:
+      logMessage = `Stage ${stageId} - ${status}`
+  }
+  
+  alert(logMessage)
 }
 
 const getStatusClass = (status) => {
@@ -180,6 +205,23 @@ const getIndicatorClass = (status) => {
       return 'bg-red-500'
     default:
       return 'bg-gray-300'
+  }
+}
+
+const getStageDescription = (stageId) => {
+  switch (stageId) {
+    case 1:
+      return 'Crawling LinkedIn for job listings'
+    case 2:
+      return 'Gathering and filtering job data'
+    case 3:
+      return 'Processing with AI (Ollama)'
+    case 4:
+      return 'Analyzing and preparing data'
+    case 5:
+      return 'Generating application tiles'
+    default:
+      return 'Processing...'
   }
 }
 
@@ -252,6 +294,9 @@ onUnmounted(() => {
       <p v-if="jobsFound > 0" class="text-sm text-green-600 font-medium mt-1">
         Jobs found: {{ jobsFound }}
       </p>
+      <p v-if="pipelineStage > 0" class="text-sm text-blue-600 font-medium mt-1">
+        Pipeline Stage: {{ pipelineStage }}/4
+      </p>
     </div>
 
     <!-- Pipeline Stages -->
@@ -274,7 +319,7 @@ onUnmounted(() => {
           </div>
           <div class="flex-1">
             <h4 class="font-medium text-gray-700">{{ stage.name }}</h4>
-            <p class="text-sm text-gray-500">{{ stage.description }}</p>
+            <p class="text-sm text-gray-500">{{ getStageDescription(stage.id) }}</p>
           </div>
           <div class="stage-status flex items-center space-x-2">
             <span 
