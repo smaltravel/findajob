@@ -104,6 +104,14 @@ class DatabasePipeline:
         adapter = ItemAdapter(item)
         now = datetime.datetime.now().replace(microsecond=0).isoformat()
 
+        # Check if the item already exists in the database
+        self.cursor.execute(
+            'SELECT 1 FROM items WHERE job_id=?', (adapter['job_id'],))
+        if self.cursor.fetchone():
+            spider.logger.info(
+                f"Item with job_id {adapter['job_id']} already exists. Skipping insertion.")
+            return item
+
         values = (
             adapter['job_id'],
             adapter['job_title'],
