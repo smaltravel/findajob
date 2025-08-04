@@ -14,70 +14,16 @@ const props = defineProps({
 const emit = defineEmits(['jobs-processed'])
 
 // Reactive data
-const applications = ref([
-  {
-    id: 1,
-    title: 'Senior Python Developer',
-    employer: 'TechCorp Inc.',
-    description: 'We are looking for an experienced Python developer to join our team. You will be responsible for developing and maintaining web applications using Django and React.',
-    status: 'new',
-    fullDescription: 'We are looking for an experienced Python developer to join our dynamic team. You will be responsible for developing and maintaining web applications using Django and React.\n\nRequirements:\n• 5+ years of experience with Python\n• Strong knowledge of Django framework\n• Experience with React and modern JavaScript\n• Knowledge of PostgreSQL and Redis\n• Experience with Docker and AWS\n\nResponsibilities:\n• Develop and maintain web applications\n• Collaborate with cross-functional teams\n• Write clean, maintainable code\n• Participate in code reviews',
-    urls: [
-      { name: 'Job Application Page', url: 'https://techcorp.com/careers/python-developer' },
-      { name: 'Company Website', url: 'https://techcorp.com' },
-      { name: 'LinkedIn Job Posting', url: 'https://linkedin.com/jobs/view/python-developer' }
-    ],
-    cv: 'John Doe\nSenior Python Developer\nEmail: john.doe@email.com | Phone: (555) 123-4567\n\nSummary: Experienced Python developer with 6+ years of expertise in Django, React, and cloud technologies. Proven track record of delivering scalable web applications and leading development teams.\n\nKey Skills: Python, Django, React, PostgreSQL, Redis, Docker, AWS, Git\n\nRelevant Experience:\n• Led development of 3 major web applications using Django and React\n• Implemented CI/CD pipelines reducing deployment time by 60%\n• Mentored 4 junior developers and conducted code reviews\n• Optimized database queries improving performance by 40%',
-    coverLetter: 'Dear Hiring Manager,\n\nI am excited to apply for the Senior Python Developer position at TechCorp Inc. With over 6 years of experience in Python development and a strong background in Django and React, I am confident I can contribute significantly to your team.\n\nMy experience aligns perfectly with your requirements. I have extensive experience with Django framework, having built and maintained multiple production applications. I also have strong React skills and have worked extensively with PostgreSQL and Redis for data management.\n\nI am particularly drawn to TechCorp\'s innovative approach to technology and your commitment to building scalable solutions. I would welcome the opportunity to discuss how my skills and experience can benefit your team.\n\nThank you for considering my application. I look forward to hearing from you.\n\nBest regards,\nJohn Doe'
-  },
-  {
-    id: 2,
-    title: 'Full Stack Developer',
-    employer: 'StartupXYZ',
-    description: 'Join our fast-growing startup as a full stack developer. Work with modern technologies including Node.js, React, and PostgreSQL in an agile environment.',
-    status: 'applied',
-    fullDescription: 'Join our fast-growing startup as a full stack developer. Work with modern technologies including Node.js, React, and PostgreSQL in an agile environment.\n\nRequirements:\n• 3+ years of experience with Node.js and React\n• Experience with PostgreSQL and Redis\n• Knowledge of Docker and cloud platforms\n• Experience with agile development\n\nResponsibilities:\n• Develop full-stack web applications\n• Work in an agile team environment\n• Write clean, maintainable code\n• Participate in code reviews and testing',
-    urls: [
-      { name: 'Job Application Page', url: 'https://startupxyz.com/careers/full-stack' },
-      { name: 'Company Website', url: 'https://startupxyz.com' }
-    ],
-    cv: 'John Doe\nFull Stack Developer\nEmail: john.doe@email.com | Phone: (555) 123-4567\n\nSummary: Full stack developer with 4+ years of experience in modern web technologies. Proven track record of delivering scalable applications in startup environments.\n\nKey Skills: Node.js, React, PostgreSQL, Redis, Docker, AWS, Git\n\nRelevant Experience:\n• Built 5 production web applications using Node.js and React\n• Implemented real-time features using WebSockets\n• Optimized database performance by 50%\n• Led development of mobile-responsive interfaces',
-    coverLetter: 'Dear Hiring Manager,\n\nI am excited to apply for the Full Stack Developer position at StartupXYZ. With 4+ years of experience in modern web development and a passion for building scalable applications, I am confident I can contribute to your team\'s success.\n\nMy experience with Node.js, React, and PostgreSQL aligns perfectly with your technology stack. I have successfully delivered multiple production applications and understand the challenges of building robust systems in a startup environment.\n\nI am particularly drawn to StartupXYZ\'s innovative approach and rapid growth. I would welcome the opportunity to contribute to your mission and grow with the company.\n\nThank you for considering my application.\n\nBest regards,\nJohn Doe'
-  },
-  {
-    id: 3,
-    title: 'React Developer',
-    employer: 'BigTech Company',
-    description: 'We need a React developer with 3+ years of experience to work on our customer-facing applications. Experience with TypeScript and Redux is a plus.',
-    status: 'rejected',
-    fullDescription: 'We need a React developer with 3+ years of experience to work on our customer-facing applications. Experience with TypeScript and Redux is a plus.\n\nRequirements:\n• 3+ years of experience with React\n• Experience with TypeScript and Redux\n• Knowledge of modern JavaScript (ES6+)\n• Experience with testing frameworks\n\nResponsibilities:\n• Develop customer-facing React applications\n• Work with TypeScript and Redux\n• Write unit and integration tests\n• Collaborate with design and backend teams',
-    urls: [
-      { name: 'Job Application Page', url: 'https://bigtech.com/careers/react-developer' },
-      { name: 'Company Website', url: 'https://bigtech.com' }
-    ],
-    cv: 'John Doe\nReact Developer\nEmail: john.doe@email.com | Phone: (555) 123-4567\n\nSummary: React developer with 3+ years of experience building modern web applications. Strong focus on user experience and code quality.\n\nKey Skills: React, TypeScript, Redux, JavaScript (ES6+), Jest, Git\n\nRelevant Experience:\n• Built 4 customer-facing React applications\n• Implemented complex state management with Redux\n• Achieved 90%+ test coverage with Jest\n• Optimized application performance by 40%',
-    coverLetter: 'Dear Hiring Manager,\n\nI am excited to apply for the React Developer position at BigTech Company. With 3+ years of experience in React development and a strong background in TypeScript and Redux, I am confident I can contribute to your team.\n\nMy experience building customer-facing applications aligns perfectly with your requirements. I have successfully delivered multiple React applications with TypeScript and Redux, ensuring high code quality and excellent user experience.\n\nI am particularly drawn to BigTech Company\'s commitment to innovation and user-centric design. I would welcome the opportunity to contribute to your mission of building exceptional customer experiences.\n\nThank you for considering my application.\n\nBest regards,\nJohn Doe'
-  },
-  {
-    id: 4,
-    title: 'DevOps Engineer',
-    employer: 'CloudTech Solutions',
-    description: 'Looking for a DevOps engineer to manage our cloud infrastructure. Experience with AWS, Docker, and Kubernetes required. Help us scale our platform.',
-    status: 'new',
-    fullDescription: 'Looking for a DevOps engineer to manage our cloud infrastructure. Experience with AWS, Docker, and Kubernetes required. Help us scale our platform.\n\nRequirements:\n• 4+ years of experience with AWS\n• Experience with Docker and Kubernetes\n• Knowledge of CI/CD pipelines\n• Experience with monitoring and logging\n\nResponsibilities:\n• Manage cloud infrastructure on AWS\n• Implement and maintain CI/CD pipelines\n• Monitor system performance and reliability\n• Automate deployment processes',
-    urls: [
-      { name: 'Job Application Page', url: 'https://cloudtech.com/careers/devops-engineer' },
-      { name: 'Company Website', url: 'https://cloudtech.com' }
-    ],
-    cv: 'John Doe\nDevOps Engineer\nEmail: john.doe@email.com | Phone: (555) 123-4567\n\nSummary: DevOps engineer with 5+ years of experience managing cloud infrastructure and implementing CI/CD pipelines. Proven track record of improving system reliability and deployment efficiency.\n\nKey Skills: AWS, Docker, Kubernetes, CI/CD, Terraform, Git\n\nRelevant Experience:\n• Managed infrastructure for 10+ production applications\n• Reduced deployment time by 70% with CI/CD automation\n• Implemented monitoring and alerting systems\n• Achieved 99.9% uptime for critical systems',
-    coverLetter: 'Dear Hiring Manager,\n\nI am excited to apply for the DevOps Engineer position at CloudTech Solutions. With 5+ years of experience in cloud infrastructure management and a strong background in AWS, Docker, and Kubernetes, I am confident I can contribute to your team\'s success.\n\nMy experience aligns perfectly with your requirements. I have successfully managed cloud infrastructure for multiple production applications and implemented efficient CI/CD pipelines that significantly improved deployment processes.\n\nI am particularly drawn to CloudTech Solutions\' focus on scalable cloud solutions and commitment to operational excellence. I would welcome the opportunity to help scale your platform and improve system reliability.\n\nThank you for considering my application.\n\nBest regards,\nJohn Doe'
-  }
-])
-
+const applications = ref([])
 const selectedApplications = ref(new Set())
 const currentSort = ref('status-creation')
 const showModal = ref(false)
 const selectedJob = ref(null)
+const loading = ref(false)
+const error = ref('')
+
+// API base URL
+const API_BASE_URL = 'http://localhost:5000/api'
 
 // Computed properties
 const sortedApplications = computed(() => {
@@ -85,7 +31,7 @@ const sortedApplications = computed(() => {
   
   switch (currentSort.value) {
     case 'title':
-      return apps.sort((a, b) => a.title.localeCompare(b.title))
+      return apps.sort((a, b) => a.job_title.localeCompare(b.job_title))
     
     case 'employer':
       return apps.sort((a, b) => a.employer.localeCompare(b.employer))
@@ -101,89 +47,33 @@ const sortedApplications = computed(() => {
           return statusA - statusB
         }
         
-        return a.id - b.id
+        return new Date(b.created_at) - new Date(a.created_at)
       })
   }
 })
 
 const selectedCount = computed(() => selectedApplications.value.size)
 
-// Watch for crawled jobs and add them to applications
-watch(() => props.crawledJobs, (newJobs) => {
-  if (newJobs && newJobs.length > 0) {
-    const nextId = Math.max(...applications.value.map(app => app.id)) + 1
-    
-    newJobs.forEach((job, index) => {
-      const newApplication = {
-        id: nextId + index,
-        title: job.job_title || 'Unknown Position',
-        employer: job.employer || 'Unknown Company',
-        description: job.job_description || 'No description available',
-        status: 'new',
-        fullDescription: job.job_description || 'No detailed description available',
-        urls: [
-          { name: 'LinkedIn Job Posting', url: job.job_url || '#' },
-          { name: 'Company Profile', url: job.employer_url || '#' }
-        ],
-        cv: generateCV(job),
-        coverLetter: generateCoverLetter(job),
-        // Add LinkedIn-specific data
-        location: job.job_location,
-        employmentType: job.employment_type,
-        seniorityLevel: job.seniority_level,
-        jobFunction: job.job_function,
-        industries: job.industries
-      }
-      
-      applications.value.unshift(newApplication) // Add to beginning
-    })
-    
-    // Emit event to notify parent that jobs have been processed
-    emit('jobs-processed', newJobs.length)
-  }
-}, { deep: true })
-
 // Methods
-const generateCV = (job) => {
-  return `John Doe
-${job.job_title || 'Software Developer'}
-Email: john.doe@email.com | Phone: (555) 123-4567
-
-Summary: Experienced developer with expertise in modern technologies. Proven track record of delivering scalable applications and leading development teams.
-
-Key Skills: JavaScript, React, Node.js, Python, Docker, AWS, Git
-
-Relevant Experience:
-• Led development of multiple production applications
-• Implemented CI/CD pipelines reducing deployment time by 60%
-• Mentored junior developers and conducted code reviews
-• Optimized application performance by 40%
-
-Location: ${job.job_location || 'Remote'}
-Employment Type: ${job.employment_type || 'Full-time'}
-Seniority Level: ${job.seniority_level || 'Mid-level'}`
-}
-
-const generateCoverLetter = (job) => {
-  return `Dear Hiring Manager,
-
-I am excited to apply for the ${job.job_title || 'Software Developer'} position at ${job.employer || 'your company'}. With experience in modern web development and a passion for building scalable applications, I am confident I can contribute to your team's success.
-
-My experience aligns perfectly with your requirements. I have successfully delivered multiple production applications and understand the challenges of building robust systems in a professional environment.
-
-I am particularly drawn to ${job.employer || 'your company'}'s innovative approach and commitment to excellence. I would welcome the opportunity to contribute to your mission and grow with the company.
-
-Thank you for considering my application.
-
-Best regards,
-John Doe
-
-Job Details:
-- Location: ${job.job_location || 'Remote'}
-- Employment Type: ${job.employment_type || 'Full-time'}
-- Seniority Level: ${job.seniority_level || 'Mid-level'}
-- Job Function: ${job.job_function || 'Software Development'}
-- Industries: ${job.industries || 'Technology'}`
+const loadJobs = async () => {
+  try {
+    loading.value = true
+    error.value = ''
+    
+    const response = await fetch(`${API_BASE_URL}/jobs`)
+    if (!response.ok) {
+      throw new Error('Failed to load jobs')
+    }
+    
+    const data = await response.json()
+    applications.value = data.jobs || []
+    
+  } catch (err) {
+    console.error('Error loading jobs:', err)
+    error.value = 'Failed to load jobs from database'
+  } finally {
+    loading.value = false
+  }
 }
 
 const toggleSelection = (applicationId) => {
@@ -194,19 +84,49 @@ const toggleSelection = (applicationId) => {
   }
 }
 
-const rejectApplication = (applicationId) => {
-  console.log(`Rejecting application ${applicationId}`)
-  const app = applications.value.find(a => a.id === applicationId)
-  if (app) {
-    app.status = 'rejected'
-    selectedApplications.value.delete(applicationId)
+const rejectApplication = async (applicationId) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/jobs/${applicationId}/status`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ status: 'rejected' })
+    })
+    
+    if (response.ok) {
+      // Update local state
+      const app = applications.value.find(a => a.id === applicationId)
+      if (app) {
+        app.status = 'rejected'
+        selectedApplications.value.delete(applicationId)
+      }
+    } else {
+      throw new Error('Failed to update job status')
+    }
+  } catch (error) {
+    console.error('Error rejecting application:', error)
+    alert('Failed to reject application')
   }
 }
 
-const deleteApplication = (applicationId) => {
-  console.log(`Deleting application ${applicationId}`)
-  applications.value = applications.value.filter(a => a.id !== applicationId)
-  selectedApplications.value.delete(applicationId)
+const deleteApplication = async (applicationId) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/jobs/${applicationId}`, {
+      method: 'DELETE'
+    })
+    
+    if (response.ok) {
+      // Remove from local state
+      applications.value = applications.value.filter(a => a.id !== applicationId)
+      selectedApplications.value.delete(applicationId)
+    } else {
+      throw new Error('Failed to delete job')
+    }
+  } catch (error) {
+    console.error('Error deleting application:', error)
+    alert('Failed to delete application')
+  }
 }
 
 const openJobModal = (application) => {
@@ -219,29 +139,93 @@ const closeJobModal = () => {
   selectedJob.value = null
 }
 
-const applyToJob = (applicationId) => {
-  console.log(`Applying to job ${applicationId}`)
-  const app = applications.value.find(a => a.id === applicationId)
-  if (app) {
-    app.status = 'applied'
+const applyToJob = async (applicationId) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/jobs/${applicationId}/status`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ status: 'applied' })
+    })
+    
+    if (response.ok) {
+      // Update local state
+      const app = applications.value.find(a => a.id === applicationId)
+      if (app) {
+        app.status = 'applied'
+      }
+      closeJobModal()
+    } else {
+      throw new Error('Failed to update job status')
+    }
+  } catch (error) {
+    console.error('Error applying to job:', error)
+    alert('Failed to apply to job')
   }
-  closeJobModal()
 }
 
-const rejectAllSelected = () => {
+const rejectAllSelected = async () => {
   if (selectedApplications.value.size > 0) {
     if (confirm(`Reject ${selectedApplications.value.size} selected applications?`)) {
-      selectedApplications.value.forEach(id => rejectApplication(id))
-      selectedApplications.value.clear()
+      try {
+        const response = await fetch(`${API_BASE_URL}/jobs/bulk-update`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            job_ids: Array.from(selectedApplications.value),
+            status: 'rejected'
+          })
+        })
+        
+        if (response.ok) {
+          // Update local state
+          applications.value.forEach(app => {
+            if (selectedApplications.value.has(app.id)) {
+              app.status = 'rejected'
+            }
+          })
+          selectedApplications.value.clear()
+        } else {
+          throw new Error('Failed to bulk update jobs')
+        }
+      } catch (error) {
+        console.error('Error bulk rejecting applications:', error)
+        alert('Failed to reject applications')
+      }
     }
   }
 }
 
-const deleteAllSelected = () => {
+const deleteAllSelected = async () => {
   if (selectedApplications.value.size > 0) {
     if (confirm(`Delete ${selectedApplications.value.size} selected applications? This action cannot be undone.`)) {
-      selectedApplications.value.forEach(id => deleteApplication(id))
-      selectedApplications.value.clear()
+      try {
+        const response = await fetch(`${API_BASE_URL}/jobs/bulk-delete`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            job_ids: Array.from(selectedApplications.value)
+          })
+        })
+        
+        if (response.ok) {
+          // Remove from local state
+          applications.value = applications.value.filter(
+            app => !selectedApplications.value.has(app.id)
+          )
+          selectedApplications.value.clear()
+        } else {
+          throw new Error('Failed to bulk delete jobs')
+        }
+      } catch (error) {
+        console.error('Error bulk deleting applications:', error)
+        alert('Failed to delete applications')
+      }
     }
   }
 }
@@ -262,11 +246,43 @@ const getStatusClass = (status) => {
       return 'bg-gray-100 text-gray-600'
   }
 }
+
+// Watch for crawled jobs and refresh the list
+watch(() => props.crawledJobs, (newJobs) => {
+  if (newJobs && newJobs.length > 0) {
+    // Refresh the job list from database
+    loadJobs()
+    emit('jobs-processed', newJobs.length)
+  }
+}, { deep: true })
+
+// Load jobs on component mount
+onMounted(() => {
+  loadJobs()
+})
 </script>
 
 <template>
   <div class="bg-white p-6 rounded-lg shadow-md">
     <h2 class="text-xl font-bold mb-4 text-gray-700">Applications</h2>
+    
+    <!-- Loading and Error States -->
+    <div v-if="loading" class="mb-6 p-4 bg-blue-50 rounded-lg">
+      <div class="flex items-center">
+        <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+        <span class="text-blue-600">Loading jobs...</span>
+      </div>
+    </div>
+    
+    <div v-if="error" class="mb-6 p-4 bg-red-50 rounded-lg">
+      <p class="text-red-600">{{ error }}</p>
+      <button 
+        @click="loadJobs"
+        class="mt-2 px-3 py-1 text-sm bg-red-100 hover:bg-red-200 text-red-700 rounded transition-colors"
+      >
+        Retry
+      </button>
+    </div>
     
     <!-- Controls Bar -->
     <div class="flex flex-wrap items-center justify-between gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
@@ -311,7 +327,11 @@ const getStatusClass = (status) => {
     </div>
 
     <!-- Applications Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div v-if="!loading && applications.length === 0" class="text-center py-8">
+      <p class="text-gray-500">No jobs found. Start a workflow to crawl for jobs!</p>
+    </div>
+    
+    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       <div
         v-for="application in sortedApplications"
         :key="application.id"
@@ -357,7 +377,7 @@ const getStatusClass = (status) => {
         </div>
         
         <h3 class="job-title text-lg font-semibold text-gray-800 mb-2 hover:text-blue-600 transition-colors">
-          {{ application.title }}
+          {{ application.job_title }}
         </h3>
         
         <p class="employer-name text-sm text-gray-600 mb-3">
@@ -365,12 +385,17 @@ const getStatusClass = (status) => {
         </p>
         
         <p class="job-description text-sm text-gray-700 line-clamp-3">
-          {{ application.description }}
+          {{ application.job_description }}
         </p>
         
         <!-- Show location if available -->
-        <p v-if="application.location" class="text-xs text-gray-500 mt-2">
-          📍 {{ application.location }}
+        <p v-if="application.job_location" class="text-xs text-gray-500 mt-2">
+          📍 {{ application.job_location }}
+        </p>
+        
+        <!-- Show creation date -->
+        <p class="text-xs text-gray-400 mt-1">
+          {{ new Date(application.created_at).toLocaleDateString() }}
         </p>
       </div>
     </div>

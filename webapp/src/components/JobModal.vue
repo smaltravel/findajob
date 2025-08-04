@@ -1,5 +1,5 @@
 <script setup>
-import { defineProps, defineEmits } from 'vue'
+import { defineProps, defineEmits, computed } from 'vue'
 
 const props = defineProps({
   job: {
@@ -23,8 +23,90 @@ const rejectJob = () => {
 }
 
 const formatText = (text) => {
+  if (!text) return ''
   return text.replace(/\n/g, '<br>')
 }
+
+// Generate CV based on job data
+const generatedCV = computed(() => {
+  const job = props.job
+  return `John Doe
+${job.job_title || 'Software Developer'}
+Email: john.doe@email.com | Phone: (555) 123-4567
+
+Summary: Experienced developer with expertise in modern technologies. Proven track record of delivering scalable applications and leading development teams.
+
+Key Skills: JavaScript, React, Node.js, Python, Docker, AWS, Git
+
+Relevant Experience:
+• Led development of multiple production applications
+• Implemented CI/CD pipelines reducing deployment time by 60%
+• Mentored junior developers and conducted code reviews
+• Optimized application performance by 40%
+
+Job Details:
+• Location: ${job.job_location || 'Remote'}
+• Employment Type: ${job.employment_type || 'Full-time'}
+• Seniority Level: ${job.seniority_level || 'Mid-level'}
+• Job Function: ${job.job_function || 'Software Development'}
+• Industries: ${job.industries || 'Technology'}`
+})
+
+// Generate cover letter based on job data
+const generatedCoverLetter = computed(() => {
+  const job = props.job
+  return `Dear Hiring Manager,
+
+I am excited to apply for the ${job.job_title || 'Software Developer'} position at ${job.employer || 'your company'}. With experience in modern web development and a passion for building scalable applications, I am confident I can contribute to your team's success.
+
+My experience aligns perfectly with your requirements. I have successfully delivered multiple production applications and understand the challenges of building robust systems in a professional environment.
+
+I am particularly drawn to ${job.employer || 'your company'}'s innovative approach and commitment to excellence. I would welcome the opportunity to contribute to your mission and grow with the company.
+
+Thank you for considering my application.
+
+Best regards,
+John Doe
+
+Job Details:
+• Location: ${job.job_location || 'Remote'}
+• Employment Type: ${job.employment_type || 'Full-time'}
+• Seniority Level: ${job.seniority_level || 'Mid-level'}
+• Job Function: ${job.job_function || 'Software Development'}
+• Industries: ${job.industries || 'Technology'}`
+})
+
+// Generate URLs for the job
+const jobUrls = computed(() => {
+  const urls = []
+  
+  if (props.job.job_url) {
+    urls.push({
+      name: 'LinkedIn Job Posting',
+      url: props.job.job_url,
+      color: 'blue'
+    })
+  }
+  
+  if (props.job.employer_url) {
+    urls.push({
+      name: 'Company Profile',
+      url: props.job.employer_url,
+      color: 'green'
+    })
+  }
+  
+  // Add a general LinkedIn search if no specific URLs
+  if (urls.length === 0) {
+    urls.push({
+      name: 'Search on LinkedIn',
+      url: `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(props.job.job_title || '')}&location=${encodeURIComponent(props.job.job_location || '')}`,
+      color: 'purple'
+    })
+  }
+  
+  return urls
+})
 </script>
 
 <template>
@@ -33,7 +115,7 @@ const formatText = (text) => {
       <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-screen overflow-y-auto">
         <!-- Modal Header -->
         <div class="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 class="text-2xl font-bold text-gray-800">{{ job.title }}</h2>
+          <h2 class="text-2xl font-bold text-gray-800">{{ job.job_title }}</h2>
           <button @click="closeModal" class="text-gray-400 hover:text-gray-600 transition-colors">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
@@ -47,7 +129,31 @@ const formatText = (text) => {
           <div>
             <h3 class="text-lg font-semibold text-gray-800 mb-2">Job Details</h3>
             <p class="text-gray-600 mb-4">{{ job.employer }}</p>
-            <div class="text-gray-700 leading-relaxed" v-html="formatText(job.fullDescription)"></div>
+            <div class="text-gray-700 leading-relaxed" v-html="formatText(job.job_description)"></div>
+            
+            <!-- Job metadata -->
+            <div class="mt-4 grid grid-cols-2 gap-4 text-sm">
+              <div v-if="job.job_location">
+                <span class="font-medium text-gray-600">Location:</span>
+                <span class="ml-2 text-gray-800">{{ job.job_location }}</span>
+              </div>
+              <div v-if="job.employment_type">
+                <span class="font-medium text-gray-600">Employment Type:</span>
+                <span class="ml-2 text-gray-800">{{ job.employment_type }}</span>
+              </div>
+              <div v-if="job.seniority_level">
+                <span class="font-medium text-gray-600">Seniority Level:</span>
+                <span class="ml-2 text-gray-800">{{ job.seniority_level }}</span>
+              </div>
+              <div v-if="job.job_function">
+                <span class="font-medium text-gray-600">Job Function:</span>
+                <span class="ml-2 text-gray-800">{{ job.job_function }}</span>
+              </div>
+              <div v-if="job.industries">
+                <span class="font-medium text-gray-600">Industries:</span>
+                <span class="ml-2 text-gray-800">{{ job.industries }}</span>
+              </div>
+            </div>
           </div>
 
           <!-- URLs Section -->
@@ -55,24 +161,24 @@ const formatText = (text) => {
             <h3 class="text-lg font-semibold text-gray-800 mb-3">Application URLs</h3>
             <div class="space-y-2">
               <a 
-                v-for="(url, index) in job.urls" 
-                :key="index"
+                v-for="url in jobUrls" 
+                :key="url.name"
                 :href="url.url" 
                 target="_blank"
                 rel="noopener noreferrer"
                 class="block p-3 border rounded-lg hover:bg-gray-50 transition-colors"
                 :class="{
-                  'bg-blue-50 border-blue-200': index === 0,
-                  'bg-green-50 border-green-200': index === 1,
-                  'bg-purple-50 border-purple-200': index === 2
+                  'bg-blue-50 border-blue-200': url.color === 'blue',
+                  'bg-green-50 border-green-200': url.color === 'green',
+                  'bg-purple-50 border-purple-200': url.color === 'purple'
                 }"
               >
                 <span 
                   class="font-medium block"
                   :class="{
-                    'text-blue-800': index === 0,
-                    'text-green-800': index === 1,
-                    'text-purple-800': index === 2
+                    'text-blue-800': url.color === 'blue',
+                    'text-green-800': url.color === 'green',
+                    'text-purple-800': url.color === 'purple'
                   }"
                 >
                   {{ url.name }}
@@ -80,9 +186,9 @@ const formatText = (text) => {
                 <span 
                   class="text-sm block mt-1"
                   :class="{
-                    'text-blue-600': index === 0,
-                    'text-green-600': index === 1,
-                    'text-purple-600': index === 2
+                    'text-blue-600': url.color === 'blue',
+                    'text-green-600': url.color === 'green',
+                    'text-purple-600': url.color === 'purple'
                   }"
                 >
                   {{ url.url }}
@@ -99,7 +205,7 @@ const formatText = (text) => {
             <div class="mb-4">
               <h4 class="font-medium text-gray-700 mb-2">Tailored CV</h4>
               <div class="p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                <div class="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{{ job.cv }}</div>
+                <div class="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{{ generatedCV }}</div>
               </div>
             </div>
 
@@ -107,7 +213,7 @@ const formatText = (text) => {
             <div>
               <h4 class="font-medium text-gray-700 mb-2">Cover Letter</h4>
               <div class="p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                <div class="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{{ job.coverLetter }}</div>
+                <div class="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{{ generatedCoverLetter }}</div>
               </div>
             </div>
           </div>

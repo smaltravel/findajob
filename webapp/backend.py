@@ -7,6 +7,7 @@ import sys
 import tempfile
 import threading
 import time
+import sqlite3
 from datetime import datetime
 
 app = Flask(__name__)
@@ -20,6 +21,16 @@ crawling_status = {
     'jobs_found': 0,
     'current_stage': 'idle'
 }
+
+# Database path
+DB_PATH = os.path.join(os.path.dirname(__file__), 'jobs.db')
+
+def get_db_connection():
+    """Create a database connection"""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row  # This enables column access by name
+    return conn
+
 
 def run_scrapy_spider(keywords, location):
     """Run the Scrapy spider with given parameters"""
@@ -38,22 +49,16 @@ def run_scrapy_spider(keywords, location):
         findajob_dir = os.path.join(os.path.dirname(__file__), '..', 'findajob')
         os.chdir(findajob_dir)
         
-        # Create a temporary file for output
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as temp_file:
-            temp_filename = temp_file.name
+        crawling_status['message'] = 'Crawling LinkedIn for job listings...'
+        crawling_status['progress'] = 25
         
         # Run the Scrapy spider
         cmd = [
             sys.executable, '-m', 'scrapy', 'crawl', 'linkedin',
             '-a', f'keywords={keywords}',
             '-a', f'location={location}',
-            '-s', f'FEED_FORMAT=json',
-            '-s', f'FEED_URI={temp_filename}',
             '-s', 'LOG_LEVEL=INFO'
         ]
-        
-        crawling_status['message'] = 'Crawling LinkedIn for job listings...'
-        crawling_status['progress'] = 25
         
         # Run the spider
         process = subprocess.Popen(
@@ -73,13 +78,25 @@ def run_scrapy_spider(keywords, location):
         stdout, stderr = process.communicate()
         
         if process.returncode == 0:
-            # Read the results
+            # Read results from database
             try:
-                with open(temp_filename, 'r') as f:
-                    jobs_data = []
-                    for line in f:
-                        if line.strip():
-                            jobs_data.append(json.loads(line))
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                
+                # Get jobs from the latest crawl
+                cursor.execute('''
+                    SELECT * FROM jobs 
+                    WHERE keywords = ? AND location = ? 
+                    AND created_at >= datetime('now', '-1 hour')
+                    ORDER BY created_at DESC
+                ''', (keywords, location))
+                
+                jobs_data = []
+                for row in cursor.fetchall():
+                    job_dict = dict(row)
+                    jobs_data.append(job_dict)
+                
+                conn.close()
                 
                 crawling_status.update({
                     'is_running': False,
@@ -104,12 +121,6 @@ def run_scrapy_spider(keywords, location):
                 'message': f'Spider failed: {stderr}',
                 'current_stage': 'error'
             })
-        
-        # Clean up temporary file
-        try:
-            os.unlink(temp_filename)
-        except:
-            pass
             
     except Exception as e:
         crawling_status.update({
@@ -179,6 +190,229 @@ def reset_workflow():
         'current_stage': 'idle'
     }
     return jsonify({'message': 'Workflow reset successfully'})
+
+@app.route('/api/jobs', methods=['GET'])
+def get_jobs():
+    """Get all jobs from the database"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get query parameters
+        status = request.args.get('status')
+        limit = request.args.get('limit', 100, type=int)
+        offset = request.args.get('offset', 0, type=int)
+        
+        # Build query
+        query = 'SELECT * FROM jobs WHERE 1=1'
+        params = []
+        
+        if status:
+            query += ' AND status = ?'
+            params.append(status)
+        
+        query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?'
+        params.extend([limit, offset])
+        
+        cursor.execute(query, params)
+        jobs = [dict(row) for row in cursor.fetchall()]
+        
+        # Get total count
+        count_query = 'SELECT COUNT(*) FROM jobs WHERE 1=1'
+        count_params = []
+        if status:
+            count_query += ' AND status = ?'
+            count_params.append(status)
+        
+        cursor.execute(count_query, count_params)
+        total_count = cursor.fetchone()[0]
+        
+        conn.close()
+        
+        return jsonify({
+            'jobs': jobs,
+            'total': total_count,
+            'limit': limit,
+            'offset': offset
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Database error: {str(e)}'}), 500
+
+@app.route('/api/jobs/<int:job_id>', methods=['GET'])
+def get_job(job_id):
+    """Get a specific job by ID"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT * FROM jobs WHERE id = ?', (job_id,))
+        job = cursor.fetchone()
+        
+        conn.close()
+        
+        if job:
+            return jsonify(dict(job))
+        else:
+            return jsonify({'error': 'Job not found'}), 404
+            
+    except Exception as e:
+        return jsonify({'error': f'Database error: {str(e)}'}), 500
+
+@app.route('/api/jobs/<int:job_id>/status', methods=['PUT'])
+def update_job_status(job_id):
+    """Update the status of a job"""
+    try:
+        data = request.get_json()
+        status = data.get('status')
+        
+        if status not in ['new', 'applied', 'rejected']:
+            return jsonify({'error': 'Invalid status'}), 400
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            UPDATE jobs 
+            SET status = ?, updated_at = CURRENT_TIMESTAMP 
+            WHERE id = ?
+        ''', (status, job_id))
+        
+        if cursor.rowcount == 0:
+            conn.close()
+            return jsonify({'error': 'Job not found'}), 404
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'message': 'Status updated successfully'})
+        
+    except Exception as e:
+        return jsonify({'error': f'Database error: {str(e)}'}), 500
+
+@app.route('/api/jobs/<int:job_id>', methods=['DELETE'])
+def delete_job(job_id):
+    """Delete a job"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('DELETE FROM jobs WHERE id = ?', (job_id,))
+        
+        if cursor.rowcount == 0:
+            conn.close()
+            return jsonify({'error': 'Job not found'}), 404
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'message': 'Job deleted successfully'})
+        
+    except Exception as e:
+        return jsonify({'error': f'Database error: {str(e)}'}), 500
+
+@app.route('/api/jobs/bulk-update', methods=['PUT'])
+def bulk_update_jobs():
+    """Bulk update job statuses"""
+    try:
+        data = request.get_json()
+        job_ids = data.get('job_ids', [])
+        status = data.get('status')
+        
+        if not job_ids:
+            return jsonify({'error': 'No job IDs provided'}), 400
+        
+        if status not in ['new', 'applied', 'rejected']:
+            return jsonify({'error': 'Invalid status'}), 400
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Use parameterized query for safety
+        placeholders = ','.join(['?' for _ in job_ids])
+        cursor.execute(f'''
+            UPDATE jobs 
+            SET status = ?, updated_at = CURRENT_TIMESTAMP 
+            WHERE id IN ({placeholders})
+        ''', [status] + job_ids)
+        
+        updated_count = cursor.rowcount
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'message': f'Updated {updated_count} jobs successfully',
+            'updated_count': updated_count
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Database error: {str(e)}'}), 500
+
+@app.route('/api/jobs/bulk-delete', methods=['DELETE'])
+def bulk_delete_jobs():
+    """Bulk delete jobs"""
+    try:
+        data = request.get_json()
+        job_ids = data.get('job_ids', [])
+        
+        if not job_ids:
+            return jsonify({'error': 'No job IDs provided'}), 400
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Use parameterized query for safety
+        placeholders = ','.join(['?' for _ in job_ids])
+        cursor.execute(f'DELETE FROM jobs WHERE id IN ({placeholders})', job_ids)
+        
+        deleted_count = cursor.rowcount
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'message': f'Deleted {deleted_count} jobs successfully',
+            'deleted_count': deleted_count
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Database error: {str(e)}'}), 500
+
+@app.route('/api/stats', methods=['GET'])
+def get_stats():
+    """Get job statistics"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get counts by status
+        cursor.execute('''
+            SELECT status, COUNT(*) as count 
+            FROM jobs 
+            GROUP BY status
+        ''')
+        status_counts = dict(cursor.fetchall())
+        
+        # Get total count
+        cursor.execute('SELECT COUNT(*) FROM jobs')
+        total_count = cursor.fetchone()[0]
+        
+        # Get recent jobs count (last 24 hours)
+        cursor.execute('''
+            SELECT COUNT(*) FROM jobs 
+            WHERE created_at >= datetime('now', '-1 day')
+        ''')
+        recent_count = cursor.fetchone()[0]
+        
+        conn.close()
+        
+        return jsonify({
+            'total_jobs': total_count,
+            'recent_jobs': recent_count,
+            'by_status': status_counts
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Database error: {str(e)}'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000) 
