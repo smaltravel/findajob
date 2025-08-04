@@ -78,10 +78,9 @@ class DatabasePipeline:
             CREATE TABLE IF NOT EXISTS items (
                 job_id TEXT PRIMARY KEY UNIQUE,
                 job_title TEXT,
-                company_name TEXT,
-                location TEXT,
+                job_location TEXT,
                 job_url TEXT,
-                description TEXT,
+                job_description TEXT,
                 employer TEXT,
                 employer_url TEXT,
                 employment_type TEXT,
@@ -115,10 +114,9 @@ class DatabasePipeline:
         values = (
             adapter['job_id'],
             adapter['job_title'],
-            adapter['company_name'],
-            adapter['location'],
+            adapter['job_location'],
             adapter['job_url'],
-            adapter['description'],
+            adapter['job_description'],
             adapter['employer'],
             adapter['employer_url'],
             adapter['employment_type'],
@@ -131,11 +129,11 @@ class DatabasePipeline:
         )
         self.cursor.execute('''
             INSERT INTO items (
-                job_id, job_title, company_name, location, job_url,
-                description, employer, employer_url, employment_type,
+                job_id, job_title, job_location, job_url, job_description,
+                employer, employer_url, employment_type,
                 job_function, seniority_level, industries, status,
                 create_time, last_modified)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', values)
         self.conn.commit()
         return item
