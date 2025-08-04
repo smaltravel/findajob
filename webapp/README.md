@@ -20,16 +20,19 @@ A Vue.js application with Scrapy integration for automated LinkedIn job crawling
 ## Installation
 
 1. **Install Node.js dependencies:**
+
    ```bash
    npm install
    ```
 
 2. **Install Python dependencies:**
+
    ```bash
    pip install -r requirements.txt
    ```
 
 3. **Install Scrapy project dependencies:**
+
    ```bash
    cd ../findajob
    pip install -r requirements.txt
@@ -40,15 +43,19 @@ A Vue.js application with Scrapy integration for automated LinkedIn job crawling
 ### Development Mode
 
 1. **Start the Flask backend API:**
+
    ```bash
    npm run backend
    ```
+
    This will start the Flask server on `http://localhost:5000` and automatically create the SQLite database
 
 2. **Start the Vue.js frontend:**
+
    ```bash
    npm run dev
    ```
+
    This will start the Vite development server on `http://localhost:8080`
 
 3. **Open your browser** and navigate to `http://localhost:8080`
@@ -56,11 +63,13 @@ A Vue.js application with Scrapy integration for automated LinkedIn job crawling
 ### Production Build
 
 1. **Build the frontend:**
+
    ```bash
    npm run build
    ```
 
 2. **Start the backend:**
+
    ```bash
    python backend.py
    ```
@@ -111,6 +120,7 @@ CREATE TABLE jobs (
 ### Workflow Stages
 
 The application shows real-time progress through these stages:
+
 1. **Job Search**: Crawling LinkedIn for job listings
 2. **Data Collection**: Collecting detailed job information
 3. **Data Processing**: Processing and organizing the data
@@ -128,12 +138,14 @@ The application shows real-time progress through these stages:
 ## API Endpoints
 
 ### Workflow Management
+
 - `POST /api/start-workflow`: Start the job crawling workflow
 - `GET /api/workflow-status`: Get current workflow status
 - `GET /api/workflow-results`: Get crawled job results
 - `POST /api/reset-workflow`: Reset workflow status
 
 ### Job Management
+
 - `GET /api/jobs`: Get all jobs with optional filtering
 - `GET /api/jobs/{id}`: Get a specific job by ID
 - `PUT /api/jobs/{id}/status`: Update job status
@@ -150,7 +162,7 @@ The application shows real-time progress through these stages:
 
 ## Project Structure
 
-```
+```text
 webapp/
 ├── src/
 │   ├── components/
@@ -212,6 +224,7 @@ The application integrates with a Scrapy spider located in `../findajob/spiders/
 ### Debug Mode
 
 To run in debug mode, set the `FLASK_ENV` environment variable:
+
 ```bash
 export FLASK_ENV=development
 python backend.py
