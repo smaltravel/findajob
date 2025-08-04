@@ -10,6 +10,7 @@ from w3lib.html import remove_tags
 import re
 import json
 import sqlite3
+import datetime
 
 
 class LinkedInJobPipeline:
@@ -75,7 +76,7 @@ class DatabasePipeline:
         """Create the 'items' table if it doesn't exist."""
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS items (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                job_id TEXT PRIMARY KEY UNIQUE,
                 job_title TEXT,
                 company_name TEXT,
                 location TEXT,
@@ -87,7 +88,9 @@ class DatabasePipeline:
                 job_function TEXT,
                 seniority_level TEXT,
                 industries TEXT,
-                status TEXT NOT NULL CHECK (status IN ('new', 'user_rejected', 'filter_rejected', 'applied'))
+                status TEXT NOT NULL CHECK (status IN ('new', 'user_rejected', 'filter_rejected', 'applied')),
+                create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+                last_modified DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ''')
         self.conn.commit()
@@ -99,7 +102,10 @@ class DatabasePipeline:
 
     def process_item(self, item, spider):
         adapter = ItemAdapter(item)
+        now = datetime.datetime.now().replace(microsecond=0).isoformat()
+
         values = (
+            adapter['job_id'],
             adapter['job_title'],
             adapter['company_name'],
             adapter['location'],
@@ -112,10 +118,16 @@ class DatabasePipeline:
             adapter['seniority_level'],
             adapter['industries'],
             'new',
+            now,
+            now,
         )
         self.cursor.execute('''
-            INSERT INTO items (job_title, company_name, location, job_url, description, employer, employer_url, employment_type, job_function, seniority_level, industries, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO items (
+                job_id, job_title, company_name, location, job_url,
+                description, employer, employer_url, employment_type,
+                job_function, seniority_level, industries, status,
+                create_time, last_modified)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', values)
         self.conn.commit()
         return item

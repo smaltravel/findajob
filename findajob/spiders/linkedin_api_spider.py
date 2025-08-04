@@ -72,7 +72,7 @@ class LinkedInSpider(scrapy.Spider):
             '//html/body/div': LinkedInSpider.__parse_job_summary,
         }
 
-        data = dict()
+        data = dict(job_id=response.url.split('/')[-1])
 
         for path, handler in path_parsers.items():
             data = data | handler(response.xpath(path))
