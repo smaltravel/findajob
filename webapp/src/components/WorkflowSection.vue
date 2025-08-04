@@ -1,29 +1,151 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
+
+// Emits
+const emit = defineEmits(['workflow-completed'])
 
 // Reactive data
 const keywords = ref('')
 const location = ref('')
 const workflowStarted = ref(false)
+const workflowStatus = ref('idle')
+const workflowProgress = ref(0)
+const workflowMessage = ref('')
+const jobsFound = ref(0)
+const statusInterval = ref(null)
 
 // Pipeline stages data
 const pipelineStages = ref([
   { id: 1, name: 'Job Search', description: 'Searching for job opportunities', status: 'stand' },
-  { id: 2, name: 'Data Collection', description: 'Collecting job data', status: 'in-progress' },
-  { id: 3, name: 'Data Processing', description: 'Processing collected data', status: 'finished-success' },
-  { id: 4, name: 'Data Analysis', description: 'Analyzing processed data', status: 'finished-failed' },
+  { id: 2, name: 'Data Collection', description: 'Collecting job data', status: 'stand' },
+  { id: 3, name: 'Data Processing', description: 'Processing collected data', status: 'stand' },
+  { id: 4, name: 'Data Analysis', description: 'Analyzing processed data', status: 'stand' },
   { id: 5, name: 'Results Export', description: 'Exporting final results', status: 'stand' }
 ])
 
+// API base URL
+const API_BASE_URL = 'http://localhost:5000/api'
+
 // Methods
-const startWorkflow = () => {
-  console.log('Starting workflow...')
-  workflowStarted.value = true
-  
-  // Simulate workflow progression (remove this in real implementation)
-  setTimeout(() => {
+const startWorkflow = async () => {
+  // Validate inputs
+  if (!keywords.value.trim()) {
+    alert('Please enter keywords')
+    return
+  }
+  if (!location.value.trim()) {
+    alert('Please enter location')
+    return
+  }
+
+  try {
+    workflowStarted.value = true
+    workflowMessage.value = 'Starting workflow...'
+    
+    // Update first stage to in-progress
+    updateStageStatus(1, 'in-progress')
+    
+    // Call the backend API
+    const response = await fetch(`${API_BASE_URL}/start-workflow`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        keywords: keywords.value.trim(),
+        location: location.value.trim()
+      })
+    })
+    
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error || 'Failed to start workflow')
+    }
+    
+    // Start polling for status
+    startStatusPolling()
+    
+  } catch (error) {
+    console.error('Error starting workflow:', error)
+    workflowMessage.value = `Error: ${error.message}`
     workflowStarted.value = false
-  }, 2000)
+    updateStageStatus(1, 'finished-failed')
+  }
+}
+
+const startStatusPolling = () => {
+  statusInterval.value = setInterval(async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/workflow-status`)
+      if (response.ok) {
+        const status = await response.json()
+        updateWorkflowStatus(status)
+      }
+    } catch (error) {
+      console.error('Error polling status:', error)
+    }
+  }, 2000) // Poll every 2 seconds
+}
+
+const updateWorkflowStatus = (status) => {
+  workflowStatus.value = status.current_stage
+  workflowProgress.value = status.progress
+  workflowMessage.value = status.message
+  jobsFound.value = status.jobs_found
+  
+  // Update pipeline stages based on status
+  if (status.current_stage === 'searching') {
+    updateStageStatus(1, 'in-progress')
+  } else if (status.current_stage === 'completed') {
+    updateStageStatus(1, 'finished-success')
+    updateStageStatus(2, 'in-progress')
+    // Simulate data collection completion
+    setTimeout(() => {
+      updateStageStatus(2, 'finished-success')
+      updateStageStatus(3, 'in-progress')
+      // Simulate data processing completion
+      setTimeout(() => {
+        updateStageStatus(3, 'finished-success')
+        updateStageStatus(4, 'in-progress')
+        // Simulate data analysis completion
+        setTimeout(() => {
+          updateStageStatus(4, 'finished-success')
+          updateStageStatus(5, 'in-progress')
+          // Simulate results export completion
+          setTimeout(() => {
+            updateStageStatus(5, 'finished-success')
+            workflowStarted.value = false
+            workflowMessage.value = `Workflow completed! Found ${jobsFound.value} jobs.`
+            stopStatusPolling()
+            
+            // Emit workflow completion with crawled jobs
+            if (status.results) {
+              emit('workflow-completed', status.results)
+            }
+          }, 1000)
+        }, 1000)
+      }, 1000)
+    }, 1000)
+  } else if (status.current_stage === 'error') {
+    updateStageStatus(1, 'finished-failed')
+    workflowStarted.value = false
+    workflowMessage.value = `Workflow failed: ${status.message}`
+    stopStatusPolling()
+  }
+}
+
+const updateStageStatus = (stageId, status) => {
+  const stage = pipelineStages.value.find(s => s.id === stageId)
+  if (stage) {
+    stage.status = status
+  }
+}
+
+const stopStatusPolling = () => {
+  if (statusInterval.value) {
+    clearInterval(statusInterval.value)
+    statusInterval.value = null
+  }
 }
 
 const viewLogs = (stageId, status) => {
@@ -60,6 +182,11 @@ const getIndicatorClass = (status) => {
       return 'bg-gray-300'
   }
 }
+
+// Cleanup on component unmount
+onUnmounted(() => {
+  stopStatusPolling()
+})
 </script>
 
 <template>
@@ -70,7 +197,7 @@ const getIndicatorClass = (status) => {
     <div class="space-y-4 mb-6">
       <div>
         <label for="keywords" class="block text-sm font-medium text-gray-700 mb-2">
-          Keywords
+          Keywords <span class="text-red-500">*</span>
         </label>
         <input
           v-model="keywords"
@@ -78,12 +205,13 @@ const getIndicatorClass = (status) => {
           id="keywords"
           placeholder="e.g., Python Developer, React"
           class="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+          :disabled="workflowStarted"
         />
       </div>
       
       <div>
         <label for="location" class="block text-sm font-medium text-gray-700 mb-2">
-          Location
+          Location <span class="text-red-500">*</span>
         </label>
         <input
           v-model="location"
@@ -91,6 +219,7 @@ const getIndicatorClass = (status) => {
           id="location"
           placeholder="e.g., San Francisco, CA"
           class="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+          :disabled="workflowStarted"
         />
       </div>
     </div>
@@ -102,8 +231,28 @@ const getIndicatorClass = (status) => {
       class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg shadow-md transition-colors duration-200 mb-6"
       :class="{ 'opacity-75': workflowStarted, 'bg-green-600 hover:bg-green-700': workflowStarted }"
     >
-      {{ workflowStarted ? 'Starting...' : 'Start Workflow' }}
+      {{ workflowStarted ? 'Workflow Running...' : 'Start Workflow' }}
     </button>
+
+    <!-- Workflow Status -->
+    <div v-if="workflowMessage" class="mb-6 p-4 bg-gray-50 rounded-lg">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-sm font-medium text-gray-700">Status:</span>
+        <span class="text-sm text-gray-600">{{ workflowStatus }}</span>
+      </div>
+      <div class="mb-2">
+        <div class="w-full bg-gray-200 rounded-full h-2">
+          <div 
+            class="bg-blue-600 h-2 rounded-full transition-all duration-300"
+            :style="{ width: `${workflowProgress}%` }"
+          ></div>
+        </div>
+      </div>
+      <p class="text-sm text-gray-600">{{ workflowMessage }}</p>
+      <p v-if="jobsFound > 0" class="text-sm text-green-600 font-medium mt-1">
+        Jobs found: {{ jobsFound }}
+      </p>
+    </div>
 
     <!-- Pipeline Stages -->
     <div class="space-y-4">

@@ -1,6 +1,17 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import JobModal from './JobModal.vue'
+
+// Props
+const props = defineProps({
+  crawledJobs: {
+    type: Array,
+    default: () => []
+  }
+})
+
+// Emits
+const emit = defineEmits(['jobs-processed'])
 
 // Reactive data
 const applications = ref([
@@ -97,7 +108,84 @@ const sortedApplications = computed(() => {
 
 const selectedCount = computed(() => selectedApplications.value.size)
 
+// Watch for crawled jobs and add them to applications
+watch(() => props.crawledJobs, (newJobs) => {
+  if (newJobs && newJobs.length > 0) {
+    const nextId = Math.max(...applications.value.map(app => app.id)) + 1
+    
+    newJobs.forEach((job, index) => {
+      const newApplication = {
+        id: nextId + index,
+        title: job.job_title || 'Unknown Position',
+        employer: job.employer || 'Unknown Company',
+        description: job.job_description || 'No description available',
+        status: 'new',
+        fullDescription: job.job_description || 'No detailed description available',
+        urls: [
+          { name: 'LinkedIn Job Posting', url: job.job_url || '#' },
+          { name: 'Company Profile', url: job.employer_url || '#' }
+        ],
+        cv: generateCV(job),
+        coverLetter: generateCoverLetter(job),
+        // Add LinkedIn-specific data
+        location: job.job_location,
+        employmentType: job.employment_type,
+        seniorityLevel: job.seniority_level,
+        jobFunction: job.job_function,
+        industries: job.industries
+      }
+      
+      applications.value.unshift(newApplication) // Add to beginning
+    })
+    
+    // Emit event to notify parent that jobs have been processed
+    emit('jobs-processed', newJobs.length)
+  }
+}, { deep: true })
+
 // Methods
+const generateCV = (job) => {
+  return `John Doe
+${job.job_title || 'Software Developer'}
+Email: john.doe@email.com | Phone: (555) 123-4567
+
+Summary: Experienced developer with expertise in modern technologies. Proven track record of delivering scalable applications and leading development teams.
+
+Key Skills: JavaScript, React, Node.js, Python, Docker, AWS, Git
+
+Relevant Experience:
+• Led development of multiple production applications
+• Implemented CI/CD pipelines reducing deployment time by 60%
+• Mentored junior developers and conducted code reviews
+• Optimized application performance by 40%
+
+Location: ${job.job_location || 'Remote'}
+Employment Type: ${job.employment_type || 'Full-time'}
+Seniority Level: ${job.seniority_level || 'Mid-level'}`
+}
+
+const generateCoverLetter = (job) => {
+  return `Dear Hiring Manager,
+
+I am excited to apply for the ${job.job_title || 'Software Developer'} position at ${job.employer || 'your company'}. With experience in modern web development and a passion for building scalable applications, I am confident I can contribute to your team's success.
+
+My experience aligns perfectly with your requirements. I have successfully delivered multiple production applications and understand the challenges of building robust systems in a professional environment.
+
+I am particularly drawn to ${job.employer || 'your company'}'s innovative approach and commitment to excellence. I would welcome the opportunity to contribute to your mission and grow with the company.
+
+Thank you for considering my application.
+
+Best regards,
+John Doe
+
+Job Details:
+- Location: ${job.job_location || 'Remote'}
+- Employment Type: ${job.employment_type || 'Full-time'}
+- Seniority Level: ${job.seniority_level || 'Mid-level'}
+- Job Function: ${job.job_function || 'Software Development'}
+- Industries: ${job.industries || 'Technology'}`
+}
+
 const toggleSelection = (applicationId) => {
   if (selectedApplications.value.has(applicationId)) {
     selectedApplications.value.delete(applicationId)
@@ -278,6 +366,11 @@ const getStatusClass = (status) => {
         
         <p class="job-description text-sm text-gray-700 line-clamp-3">
           {{ application.description }}
+        </p>
+        
+        <!-- Show location if available -->
+        <p v-if="application.location" class="text-xs text-gray-500 mt-2">
+          📍 {{ application.location }}
         </p>
       </div>
     </div>

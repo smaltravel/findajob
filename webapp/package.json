@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "backend": "python backend.py"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.11",
@@ -16,5 +17,9 @@
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.0",
     "vite": "^7.0.4"
+  },
+  "pythonDependencies": {
+    "flask": "^3.0.0",
+    "flask-cors": "^4.0.0"
   }
 }
