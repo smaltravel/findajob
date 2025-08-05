@@ -15,11 +15,8 @@ import json
 import os
 import sys
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List
 import requests
-from docx import Document
-from docx.shared import Inches
-import tempfile
 import logging
 
 # Configure logging
@@ -33,7 +30,7 @@ logger = logging.getLogger(__name__)
 class JobProcessor:
     """Processes job records and generates CVs, cover letters, and summaries using a local LLM."""
 
-    def __init__(self, database_path: str, llm_url: str = "http://localhost:11434/api/generate"):
+    def __init__(self, database_path: str, llm_url: str = "http://localhost:11434/api/generate", model: str = "hr-consultant"):
         """
         Initialize the JobProcessor.
 
@@ -43,6 +40,7 @@ class JobProcessor:
         """
         self.database_path = database_path
         self.llm_url = llm_url
+        self.model = model
         self.conn = None
         self.cursor = None
 
@@ -64,8 +62,6 @@ class JobProcessor:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 job_id INTEGER NOT NULL,
                 runid TEXT NOT NULL,
-                cv_content TEXT,
-                cv_file_path TEXT,
                 cover_letter TEXT,
                 job_summary TEXT,
                 processing_status TEXT DEFAULT 'pending',
@@ -153,35 +149,6 @@ class JobProcessor:
             logger.error(f"Failed to parse LLM response: {e}")
             raise
 
-    def generate_cv_prompt(self, job_data: Dict) -> str:
-        """Generate a prompt for CV creation based on job data."""
-        return f"""
-        Create a professional CV (resume) for the following job position. 
-        The CV should be tailored to this specific role and company.
-        
-        Job Title: {job_data.get('job_title', 'N/A')}
-        Company: {job_data.get('employer', 'N/A')}
-        Location: {job_data.get('job_location', 'N/A')}
-        Employment Type: {job_data.get('employment_type', 'N/A')}
-        Seniority Level: {job_data.get('seniority_level', 'N/A')}
-        Job Function: {job_data.get('job_function', 'N/A')}
-        Industries: {job_data.get('industries', 'N/A')}
-        
-        Job Description:
-        {job_data.get('job_description', 'N/A')}
-        
-        Please create a comprehensive CV that includes:
-        1. Professional summary
-        2. Skills section (matching the job requirements)
-        3. Work experience (relevant to the position)
-        4. Education
-        5. Certifications (if applicable)
-        6. Projects (if relevant)
-        
-        Make the CV professional, well-structured, and specifically tailored to this job opportunity.
-        Focus on relevant skills and experience that match the job requirements.
-        """
-
     def generate_cover_letter_prompt(self, job_data: Dict) -> str:
         """Generate a prompt for cover letter creation based on job data."""
         return f"""
@@ -207,6 +174,7 @@ class JobProcessor:
         6. Is concise but comprehensive (1-2 pages)
         
         Make it personal, specific to this opportunity, and compelling.
+        Use language for generated content the same with Job description.
         """
 
     def generate_job_summary_prompt(self, job_data: Dict) -> str:
@@ -233,56 +201,6 @@ class JobProcessor:
         Keep it concise but informative.
         """
 
-    def create_docx_cv(self, cv_content: str, job_data: Dict) -> str:
-        """
-        Create a DOCX file from the CV content.
-
-        Args:
-            cv_content: The CV text content
-            job_data: Job data for filename
-
-        Returns:
-            Path to the created DOCX file
-        """
-        try:
-            # Create a new Document
-            doc = Document()
-
-            # Add title
-            title = doc.add_heading(
-                f"CV for {job_data.get('job_title', 'Position')} at {job_data.get('employer', 'Company')}", 0)
-
-            # Split content into sections and add to document
-            sections = cv_content.split('\n\n')
-            for section in sections:
-                if section.strip():
-                    # Check if it's a section header (all caps or contains ':')
-                    if section.isupper() or ':' in section[:50]:
-                        doc.add_heading(section.strip(), level=1)
-                    else:
-                        doc.add_paragraph(section.strip())
-
-            # Create filename
-            safe_title = "".join(c for c in job_data.get(
-                'job_title', 'job') if c.isalnum() or c in (' ', '-', '_')).rstrip()
-            safe_company = "".join(c for c in job_data.get(
-                'employer', 'company') if c.isalnum() or c in (' ', '-', '_')).rstrip()
-            filename = f"CV_{safe_title}_{safe_company}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx"
-
-            # Create output directory if it doesn't exist
-            output_dir = "generated_cvs"
-            os.makedirs(output_dir, exist_ok=True)
-
-            file_path = os.path.join(output_dir, filename)
-            doc.save(file_path)
-
-            logger.info(f"Created CV DOCX file: {file_path}")
-            return file_path
-
-        except Exception as e:
-            logger.error(f"Failed to create DOCX file: {e}")
-            raise
-
     def process_job(self, job_data: Dict) -> Dict:
         """
         Process a single job record to generate CV, cover letter, and summary.
@@ -300,26 +218,17 @@ class JobProcessor:
             f"Processing job {job_id}: {job_data.get('job_title', 'N/A')} at {job_data.get('employer', 'N/A')}")
 
         try:
-            # Generate CV
-            cv_prompt = self.generate_cv_prompt(job_data)
-            cv_content = self.call_local_llm(cv_prompt)
-
-            # Create DOCX file
-            cv_file_path = self.create_docx_cv(cv_content, job_data)
-
             # Generate cover letter
             cover_letter_prompt = self.generate_cover_letter_prompt(job_data)
-            cover_letter = self.call_local_llm(cover_letter_prompt)
+            cover_letter = self.call_local_llm(cover_letter_prompt, self.model)
 
             # Generate job summary
             summary_prompt = self.generate_job_summary_prompt(job_data)
-            job_summary = self.call_local_llm(summary_prompt)
+            job_summary = self.call_local_llm(summary_prompt, self.model)
 
             return {
                 'job_id': job_id,
                 'runid': runid,
-                'cv_content': cv_content,
-                'cv_file_path': cv_file_path,
                 'cover_letter': cover_letter,
                 'job_summary': job_summary,
                 'processing_status': 'completed',
@@ -331,8 +240,6 @@ class JobProcessor:
             return {
                 'job_id': job_id,
                 'runid': runid,
-                'cv_content': None,
-                'cv_file_path': None,
                 'cover_letter': None,
                 'job_summary': None,
                 'processing_status': 'failed',
@@ -341,24 +248,20 @@ class JobProcessor:
 
     def save_processed_job(self, processed_data: Dict):
         """Save processed job data to the database."""
-        query = '''
-            INSERT INTO processed_jobs (
-                job_id, runid, cv_content, cv_file_path, cover_letter, 
-                job_summary, processing_status, error_message, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        '''
-
         values = (
             processed_data['job_id'],
             processed_data['runid'],
-            processed_data['cv_content'],
-            processed_data['cv_file_path'],
             processed_data['cover_letter'],
             processed_data['job_summary'],
             processed_data['processing_status'],
             processed_data['error_message'],
             datetime.now().isoformat()
         )
+        query = '''
+            INSERT INTO processed_jobs (
+                job_id, runid, cover_letter, job_summary, processing_status, error_message, updated_at
+            )
+        ''' + str(' VALUES (%s)' % (', '.join(['?' for _ in values])))
 
         self.cursor.execute(query, values)
         self.conn.commit()
@@ -409,12 +312,12 @@ def main():
         description='Process job records and generate CVs, cover letters, and summaries')
     parser.add_argument('--runid', required=True,
                         help='Run ID to process jobs for')
-    parser.add_argument('--database', default='webapp/jobs.db',
-                        help='Path to the SQLite database (default: webapp/jobs.db)')
+    parser.add_argument('--database', default='../webapp/jobs.db',
+                        help='Path to the SQLite database (default: ../webapp/jobs.db)')
     parser.add_argument('--llm-url', default='http://localhost:11434/api/generate',
                         help='URL of the local LLM API (default: http://localhost:11434/api/generate)')
-    parser.add_argument('--model', default='llama3.2',
-                        help='LLM model to use (default: llama3.2)')
+    parser.add_argument('--model', default='hr-consultant',
+                        help='LLM model to use (default: hr-consultant)')
 
     args = parser.parse_args()
 

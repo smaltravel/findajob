@@ -5,11 +5,11 @@ Configuration settings for the job processor tools.
 import os
 
 # Database settings
-DEFAULT_DATABASE_PATH = "webapp/jobs.db"
+DEFAULT_DATABASE_PATH = "../webapp/jobs.db"
 
 # LLM API settings
 DEFAULT_LLM_URL = "http://localhost:11434/api/generate"
-DEFAULT_LLM_MODEL = "llama3.2"
+DEFAULT_LLM_MODEL = "hr-consultant"
 
 # Output settings
 CV_OUTPUT_DIR = "generated_cvs"
