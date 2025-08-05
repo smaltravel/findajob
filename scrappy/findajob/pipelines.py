@@ -66,13 +66,19 @@ class LinkedInJobPipeline:
 class DatabasePipeline:
     """Pipeline to store processed job items in a database."""
 
-    def __init__(self):
-        # Create database in the webapp directory for easy access
-        webapp_dir = os.path.join(os.path.dirname(__file__), '..', 'webapp')
-        os.makedirs(webapp_dir, exist_ok=True)
-        db_path = os.path.join(webapp_dir, 'jobs.db')
-        
-        self.conn = sqlite3.connect(db_path)
+    def __init__(self, database_path=None):
+        # Use the database path from settings or default to webapp/jobs.db
+        if database_path is None:
+            from scrapy.utils.project import get_project_settings
+            settings = get_project_settings()
+            database_path = settings.get('DATABASE_PATH', 'webapp/jobs.db')
+
+        # Ensure the directory exists
+        db_dir = os.path.dirname(database_path)
+        if db_dir:
+            os.makedirs(db_dir, exist_ok=True)
+
+        self.conn = sqlite3.connect(database_path)
         self.cursor = self.conn.cursor()
 
         # Create table if it doesn't exist
@@ -83,6 +89,7 @@ class DatabasePipeline:
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS jobs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                spider_source TEXT NOT NULL,
                 job_id TEXT UNIQUE,
                 job_title TEXT,
                 job_location TEXT,
@@ -94,12 +101,12 @@ class DatabasePipeline:
                 job_function TEXT,
                 seniority_level TEXT,
                 industries TEXT,
-                status TEXT NOT NULL CHECK (status IN ('new', 'user_rejected', 'filter_rejected', 'applied', 'interview_scheduled', 'interview_completed', 'offer_received', 'offer_accepted', 'offer_rejected', 'not_answered', 'employer_rejected')),
-                create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-                last_modified DATETIME DEFAULT CURRENT_TIMESTAMP
+                status TEXT NOT NULL DEFAULT 'new',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ''')
-        
+
         # Create index for better query performance
         self.cursor.execute('''
             CREATE INDEX IF NOT EXISTS idx_job_id ON jobs(job_id)
@@ -116,7 +123,7 @@ class DatabasePipeline:
         self.cursor.execute('''
             CREATE INDEX IF NOT EXISTS idx_employer ON jobs(employer)
         ''')
-        
+
         self.conn.commit()
 
     def open_spider(self, spider):
@@ -137,6 +144,7 @@ class DatabasePipeline:
             return item
 
         values = (
+            spider.name,
             adapter['job_id'],
             adapter['job_title'],
             adapter['job_location'],
@@ -148,21 +156,26 @@ class DatabasePipeline:
             adapter['job_function'],
             adapter['seniority_level'],
             adapter['industries'],
-            'new',
-            now,
-            now,
         )
         self.cursor.execute('''
             INSERT INTO jobs (
-                job_id, job_title, job_location, job_url, job_description,
-                employer, employer_url, employment_type,
-                job_function, seniority_level, industries, status,
-                create_time, last_modified)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', values)
+                spider_source,
+                job_id,
+                job_title,
+                job_location,
+                job_url,
+                job_description,
+                employer,
+                employer_url,
+                employment_type,
+                job_function,
+                seniority_level,
+                industries)
+        ''' + str(' VALUES (%s)' % (', '.join(['?' for _ in values]))), values)
         self.conn.commit()
-        
-        spider.logger.info(f"Inserted job: {adapter['job_title']} at {adapter['employer']}")
+
+        spider.logger.info(
+            f"Inserted job: {adapter['job_title']} at {adapter['employer']}")
         return item
 
     def close_spider(self, spider):
@@ -172,7 +185,7 @@ class DatabasePipeline:
             WHERE keywords = ? AND location = ? AND created_at >= datetime('now', '-1 hour')
         ''', (self.keywords, self.location))
         count = self.cursor.fetchone()[0]
-        
+
         spider.logger.info(f"Spider finished. Inserted {count} new jobs")
         self.conn.close()
 
