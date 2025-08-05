@@ -63,11 +63,14 @@ class LinkedInSpider(scrapy.Spider):
                 'div.base-card::attr(data-entity-urn)').get()
             if job_urn:
                 job_id = job_urn.split(':')[-1]
-                cnt += 1
                 self.log(f"Found job ID: {job_id}")
 
                 # Yield a request to process the job card with the ID
                 yield scrapy.Request(f'{self.base_job_url}{job_id}', callback=self.parse_job)
+
+        # Increment the start parameter to get the next page of results
+        self.__params['start'] += self.__jobs_processed
+        yield scrapy.Request(f'{self.base_search_url}?{urlencode(self.__params)}', callback=self.parse_search)
 
     def parse_job(self, response):
         """
@@ -101,7 +104,12 @@ class LinkedInSpider(scrapy.Spider):
         yield data
 
     @staticmethod
-    def __parse_line(line: str):
+    def __parse_line(line: str, default: str = None):
+        if line is None and default is None:
+            raise ValueError(
+                "Parsed line is None and no default value provided")
+        if line is None:
+            return default
         return ' '.join(l.rstrip() for l in line.split() if len(l) > 0)
 
     @staticmethod
@@ -120,8 +128,8 @@ class LinkedInSpider(scrapy.Spider):
     def __parse_job_summary(card):
         return {
             'job_description': LinkedInSpider.__parse_line(card.css('div.show-more-less-html__markup').get()),
-            'seniority_level': LinkedInSpider.__parse_line(card.xpath('//section[1]/div/ul/li[1]/span/text()').get()),
-            'employment_type': LinkedInSpider.__parse_line(card.xpath('//section[1]/div/ul/li[2]/span/text()').get()),
-            'job_function': LinkedInSpider.__parse_line(card.xpath('//section[1]/div/ul/li[3]/span/text()').get()),
-            'industries': LinkedInSpider.__parse_line(card.xpath('//section[1]/div/ul/li[4]/span/text()').get()),
+            'seniority_level': LinkedInSpider.__parse_line(card.xpath('//section[1]/div/ul/li[1]/span/text()').get(), 'N/A'),
+            'employment_type': LinkedInSpider.__parse_line(card.xpath('//section[1]/div/ul/li[2]/span/text()').get(), 'N/A'),
+            'job_function': LinkedInSpider.__parse_line(card.xpath('//section[1]/div/ul/li[3]/span/text()').get(), 'N/A'),
+            'industries': LinkedInSpider.__parse_line(card.xpath('//section[1]/div/ul/li[4]/span/text()').get(), 'N/A'),
         }

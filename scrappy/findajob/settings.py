@@ -89,7 +89,7 @@ ITEM_PIPELINES = {
 FEED_EXPORT_ENCODING = "utf-8"
 
 # Database settings
-DATABASE_PATH = "webapp/jobs.db"
+DATABASE_PATH = "../webapp/jobs.db"
 
 DOWNLOAD_HANDLERS = {
     "http": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
