@@ -101,6 +101,7 @@ class DatabasePipeline:
                 job_function TEXT,
                 seniority_level TEXT,
                 industries TEXT,
+                runid TEXT,
                 status TEXT NOT NULL DEFAULT 'new',
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -122,6 +123,9 @@ class DatabasePipeline:
         ''')
         self.cursor.execute('''
             CREATE INDEX IF NOT EXISTS idx_employer ON jobs(employer)
+        ''')
+        self.cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_runid ON jobs(runid)
         ''')
 
         self.conn.commit()
@@ -156,6 +160,8 @@ class DatabasePipeline:
             adapter['job_function'],
             adapter['seniority_level'],
             adapter['industries'],
+            # Get runid from item, default to empty string
+            adapter.get('runid', ''),
         )
         self.cursor.execute('''
             INSERT INTO jobs (
@@ -170,12 +176,13 @@ class DatabasePipeline:
                 employment_type,
                 job_function,
                 seniority_level,
-                industries)
+                industries,
+                runid)
         ''' + str(' VALUES (%s)' % (', '.join(['?' for _ in values]))), values)
         self.conn.commit()
 
         spider.logger.info(
-            f"Inserted job: {adapter['job_title']} at {adapter['employer']}")
+            f"Inserted job: {adapter['job_title']} at {adapter['employer']} with runid: {adapter.get('runid', 'N/A')}")
         return item
 
     def close_spider(self, spider):

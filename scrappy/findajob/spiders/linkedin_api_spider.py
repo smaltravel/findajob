@@ -14,8 +14,10 @@ class LinkedInSpider(scrapy.Spider):
     base_search_url = 'https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search'
     base_job_url = 'https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/'
 
-    def __init__(self, keywords: str, location: str, *args, **kwargs):
+    def __init__(self, keywords: str, location: str, runid: str, *args, **kwargs):
         super(LinkedInSpider).__init__(*args, **kwargs)
+        # Store runid for database storage
+        self.runid = runid
         # For more info visit: https://gist.github.com/Diegiwg/51c22fa7ec9d92ed9b5d1f537b9e1107
         self.__params = {
             'keywords': keywords,
@@ -72,7 +74,7 @@ class LinkedInSpider(scrapy.Spider):
             '//html/body/div': LinkedInSpider.__parse_job_summary,
         }
 
-        data = dict(job_id=response.url.split('/')[-1])
+        data = dict(job_id=response.url.split('/')[-1], runid=self.runid)
 
         for path, handler in path_parsers.items():
             data = data | handler(response.xpath(path))

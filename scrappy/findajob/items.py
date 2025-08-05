@@ -15,3 +15,4 @@ class LinkedInJobItem(scrapy.Item):
     job_url = scrapy.Field()
     employer_url = scrapy.Field()
     industries = scrapy.Field()
+    runid = scrapy.Field()
