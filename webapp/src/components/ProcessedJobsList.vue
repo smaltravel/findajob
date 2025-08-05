@@ -66,6 +66,36 @@ const truncateText = (text, maxLength = 150) => {
   return text.length > maxLength ? text.substring(0, maxLength) + '...' : text
 }
 
+const formatJobDescription = (description) => {
+  if (!description) return ''
+  
+  // Clean and format the job description
+  let formatted = description
+  
+  // Replace common HTML entities
+  formatted = formatted.replace(/&amp;/g, '&')
+  formatted = formatted.replace(/&lt;/g, '<')
+  formatted = formatted.replace(/&gt;/g, '>')
+  formatted = formatted.replace(/&quot;/g, '"')
+  formatted = formatted.replace(/&#39;/g, "'")
+  
+  // Convert line breaks to <br> tags
+  formatted = formatted.replace(/\n/g, '<br>')
+  
+  // Convert bullet points and lists
+  formatted = formatted.replace(/^\s*[-•*]\s+/gm, '• ')
+  formatted = formatted.replace(/^\s*\d+\.\s+/gm, (match) => {
+    const num = match.match(/\d+/)[0]
+    return `${num}. `
+  })
+  
+  // Wrap in paragraphs for better readability
+  const paragraphs = formatted.split('<br><br>')
+  formatted = paragraphs.map(p => `<p class="mb-3">${p}</p>`).join('')
+  
+  return formatted
+}
+
 // Load jobs on component mount
 onMounted(() => {
   loadJobs()
@@ -249,7 +279,10 @@ onMounted(() => {
             <div v-if="selectedJob.job_summary">
               <h3 class="text-lg font-semibold text-gray-900 mb-3">AI Summary</h3>
               <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p class="text-gray-900">{{ selectedJob.job_summary }}</p>
+                <div 
+                  class="text-gray-900 prose prose-sm max-w-none"
+                  v-html="formatJobDescription(selectedJob.job_summary)"
+                ></div>
               </div>
             </div>
 
@@ -257,7 +290,10 @@ onMounted(() => {
             <div v-if="selectedJob.job_description">
               <h3 class="text-lg font-semibold text-gray-900 mb-3">Original Job Description</h3>
               <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 max-h-64 overflow-y-auto">
-                <p class="text-gray-900 whitespace-pre-wrap">{{ selectedJob.job_description }}</p>
+                <div 
+                  class="text-gray-900 prose prose-sm max-w-none"
+                  v-html="formatJobDescription(selectedJob.job_description)"
+                ></div>
               </div>
             </div>
 
@@ -265,7 +301,10 @@ onMounted(() => {
             <div v-if="selectedJob.cover_letter">
               <h3 class="text-lg font-semibold text-gray-900 mb-3">AI Generated Cover Letter</h3>
               <div class="bg-green-50 border border-green-200 rounded-lg p-4 max-h-96 overflow-y-auto">
-                <p class="text-gray-900 whitespace-pre-wrap">{{ selectedJob.cover_letter }}</p>
+                <div 
+                  class="text-gray-900 prose prose-sm max-w-none"
+                  v-html="formatJobDescription(selectedJob.cover_letter)"
+                ></div>
               </div>
             </div>
 
