@@ -17,7 +17,7 @@ import sys
 from datetime import datetime
 from typing import Dict, List
 import logging
-from providers import AIProvider, OllamaProvider, AIProviderConfig
+from providers import AIProvider, OllamaProvider, GoogleAIProvider, AIProviderConfig
 
 # Configure logging
 logging.basicConfig(
@@ -235,6 +235,10 @@ def main():
                         help='Path to the SQLite database (default: ../webapp/jobs.db)')
     parser.add_argument('--cv_json', required=True,
                         help='Path to the user CV JSON file')
+    parser.add_argument('--provider', choices=['ollama', 'google'], default='ollama',
+                        help='AI provider to use (default: ollama)')
+    parser.add_argument('--api_key',
+                        help='API key for Google AI (required if provider is google)')
 
     args = parser.parse_args()
 
@@ -243,14 +247,36 @@ def main():
         logger.error(f"Database file not found: {args.database}")
         sys.exit(1)
 
-    # Initialize processor
-    processor = JobProcessor(args.database, OllamaProvider(
-        AIProviderConfig(
-            model="deepseek-r1:7b",
-            base_url="http://localhost:11434",
-            user_cv=json.load(open(args.cv_json))
+    # Load CV data
+    with open(args.cv_json, 'r') as f:
+        cv_data = json.load(f)
+
+    # Initialize AI provider based on choice
+    if args.provider == 'ollama':
+        ai_provider = OllamaProvider(
+            AIProviderConfig(
+                model="deepseek-r1:7b",
+                base_url="http://localhost:11434",
+                user_cv=cv_data
+            )
         )
-    ))
+    elif args.provider == 'google':
+        if not args.api_key:
+            logger.error("API key is required for Google AI provider")
+            sys.exit(1)
+        ai_provider = GoogleAIProvider(
+            AIProviderConfig(
+                model="gemini-2.5-flash-lite",
+                api_key=args.api_key,
+                user_cv=cv_data
+            )
+        )
+    else:
+        logger.error(f"Unknown provider: {args.provider}")
+        sys.exit(1)
+
+    # Initialize processor
+    processor = JobProcessor(args.database, ai_provider)
 
     try:
         # Connect to database
