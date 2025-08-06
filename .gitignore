@@ -9,3 +9,7 @@ __pycache__/
 
 # VSCode
 .vscode
+
+# Ignore db artifacts
+**/*.db
+**/*.db-journal

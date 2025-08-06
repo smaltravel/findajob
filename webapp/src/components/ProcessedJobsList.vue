@@ -7,6 +7,7 @@ const selectedJob = ref(null)
 const showModal = ref(false)
 const loading = ref(false)
 const error = ref('')
+const viewMode = ref('grid') // 'grid' or 'list'
 
 // API base URL
 const API_BASE_URL = 'http://localhost:3000/api'
@@ -53,6 +54,10 @@ const closeModal = () => {
   selectedJob.value = null
 }
 
+const toggleViewMode = () => {
+  viewMode.value = viewMode.value === 'grid' ? 'list' : 'grid'
+}
+
 const formatDate = (dateString) => {
   return new Date(dateString).toLocaleDateString('en-US', {
     year: 'numeric',
@@ -94,6 +99,62 @@ const formatJobDescription = (description) => {
   formatted = paragraphs.map(p => `<p class="mb-3">${p}</p>`).join('')
   
   return formatted
+}
+
+const getStatusClass = (status) => {
+  switch (status) {
+    case 'new':
+      return 'bg-blue-100 text-blue-700'
+    case 'applied':
+      return 'bg-green-100 text-green-700'
+    case 'user_rejected':
+    case 'filter_rejected':
+    case 'employer_rejected':
+      return 'bg-red-100 text-red-700'
+    case 'interview_scheduled':
+      return 'bg-yellow-100 text-yellow-700'
+    case 'interview_completed':
+      return 'bg-purple-100 text-purple-700'
+    case 'offer_received':
+      return 'bg-indigo-100 text-indigo-700'
+    case 'offer_accepted':
+      return 'bg-green-100 text-green-700'
+    case 'offer_rejected':
+      return 'bg-red-100 text-red-700'
+    case 'not_answered':
+      return 'bg-gray-100 text-gray-700'
+    default:
+      return 'bg-gray-100 text-gray-600'
+  }
+}
+
+const getStatusText = (status) => {
+  switch (status) {
+    case 'new':
+      return 'New'
+    case 'applied':
+      return 'Applied'
+    case 'user_rejected':
+      return 'Rejected'
+    case 'filter_rejected':
+      return 'Filtered'
+    case 'employer_rejected':
+      return 'Rejected'
+    case 'interview_scheduled':
+      return 'Interview'
+    case 'interview_completed':
+      return 'Completed'
+    case 'offer_received':
+      return 'Offer'
+    case 'offer_accepted':
+      return 'Accepted'
+    case 'offer_rejected':
+      return 'Rejected'
+    case 'not_answered':
+      return 'No Reply'
+    default:
+      return status
+  }
 }
 
 // Load jobs on component mount
@@ -141,65 +202,166 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Jobs Grid -->
-      <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div
-          v-for="job in jobs"
-          :key="job.id"
-          class="job-tile bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all duration-200 cursor-pointer"
-          @click="openJobModal(job.id)"
-        >
-          <!-- Job Header -->
-          <div class="flex items-start justify-between mb-4">
-            <div class="flex-1">
-              <h3 class="text-lg font-semibold text-gray-900 mb-1 line-clamp-2">
-                {{ job.job_title }}
-              </h3>
-              <p class="text-sm text-gray-600">{{ job.employer }}</p>
+      <!-- View Toggle and Jobs -->
+      <div v-else>
+        <!-- View Toggle -->
+        <div class="flex justify-end mb-6">
+          <div class="flex items-center bg-white rounded-lg shadow-sm border border-gray-200 p-1">
+            <button
+              @click="toggleViewMode"
+              :class="[
+                'px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                viewMode === 'grid' 
+                  ? 'bg-blue-100 text-blue-700' 
+                  : 'text-gray-500 hover:text-gray-700'
+              ]"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path>
+              </svg>
+            </button>
+            <button
+              @click="toggleViewMode"
+              :class="[
+                'px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                viewMode === 'list' 
+                  ? 'bg-blue-100 text-blue-700' 
+                  : 'text-gray-500 hover:text-gray-700'
+              ]"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Jobs Grid View -->
+        <div v-if="viewMode === 'grid'" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div
+            v-for="job in jobs"
+            :key="job.id"
+            class="job-tile bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all duration-200 cursor-pointer"
+            @click="openJobModal(job.id)"
+          >
+            <!-- Job Header -->
+            <div class="flex items-start justify-between mb-4">
+              <div class="flex-1">
+                <h3 class="text-lg font-semibold text-gray-900 mb-1 line-clamp-2 text-left">
+                  {{ job.job_title }}
+                </h3>
+                <p class="text-sm text-gray-600 text-left">{{ job.employer }}</p>
+              </div>
+              <div class="ml-4">
+                <span 
+                  class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                  :class="getStatusClass(job.status)"
+                >
+                  {{ getStatusText(job.status) }}
+                </span>
+              </div>
             </div>
-            <div class="ml-4">
-              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                Processed
-              </span>
+
+            <!-- Job Summary -->
+            <div class="mb-4">
+              <p class="text-sm text-gray-700 line-clamp-3 text-left">
+                {{ truncateText(job.job_summary) }}
+              </p>
+            </div>
+
+            <!-- Job Details -->
+            <div class="space-y-2 mb-4">
+              <div v-if="job.job_location" class="flex items-center text-sm text-gray-500">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                </svg>
+                <span class="text-left">{{ job.job_location }}</span>
+              </div>
+              
+              <div v-if="job.employment_type" class="flex items-center text-sm text-gray-500">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2-2v2m8 0V6a2 2 0 012 2v6a2 2 0 01-2 2H8a2 2 0 01-2-2V8a2 2 0 012-2V6"></path>
+                </svg>
+                <span class="text-left">{{ job.employment_type }}</span>
+              </div>
+
+              <div v-if="job.seniority_level" class="flex items-center text-sm text-gray-500">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <span class="text-left">{{ job.seniority_level }}</span>
+              </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="flex items-center justify-between text-xs text-gray-400">
+              <span class="text-left">Processed: {{ formatDate(job.created_at) }}</span>
+              <span class="text-blue-600 hover:text-blue-700">View Details →</span>
             </div>
           </div>
+        </div>
 
-          <!-- Job Summary -->
-          <div class="mb-4">
-            <p class="text-sm text-gray-700 line-clamp-3">
-              {{ truncateText(job.job_summary) }}
-            </p>
-          </div>
-
-          <!-- Job Details -->
-          <div class="space-y-2 mb-4">
-            <div v-if="job.job_location" class="flex items-center text-sm text-gray-500">
-              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
-              </svg>
-              {{ job.job_location }}
+        <!-- Jobs List View -->
+        <div v-else class="space-y-4">
+          <div
+            v-for="job in jobs"
+            :key="job.id"
+            class="job-tile bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all duration-200 cursor-pointer"
+            @click="openJobModal(job.id)"
+          >
+            <div class="flex items-start space-x-4">
+              <!-- Job Info -->
+              <div class="flex-1 min-w-0">
+                <div class="flex items-start justify-between mb-2">
+                  <h3 class="text-lg font-semibold text-gray-900 line-clamp-2 text-left">
+                    {{ job.job_title }}
+                  </h3>
+                  <span 
+                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ml-4 flex-shrink-0"
+                    :class="getStatusClass(job.status)"
+                  >
+                    {{ getStatusText(job.status) }}
+                  </span>
+                </div>
+                
+                <p class="text-sm text-gray-600 mb-2 text-left">{{ job.employer }}</p>
+                
+                <div class="flex items-center space-x-4 text-sm text-gray-500 mb-3">
+                  <div v-if="job.job_location" class="flex items-center">
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    </svg>
+                    <span class="text-left">{{ job.job_location }}</span>
+                  </div>
+                  
+                  <div v-if="job.employment_type" class="flex items-center">
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2-2v2m8 0V6a2 2 0 012 2v6a2 2 0 01-2 2H8a2 2 0 01-2-2V8a2 2 0 012-2V6"></path>
+                    </svg>
+                    <span class="text-left">{{ job.employment_type }}</span>
+                  </div>
+                  
+                  <div v-if="job.seniority_level" class="flex items-center">
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span class="text-left">{{ job.seniority_level }}</span>
+                  </div>
+                </div>
+                
+                <p class="text-sm text-gray-700 line-clamp-2 text-left">
+                  {{ truncateText(job.job_summary, 200) }}
+                </p>
+              </div>
+              
+              <!-- Right side info -->
+              <div class="flex flex-col items-end space-y-2 text-xs text-gray-400">
+                <span class="text-left">Processed: {{ formatDate(job.created_at) }}</span>
+                <span class="text-blue-600 hover:text-blue-700">View Details →</span>
+              </div>
             </div>
-            
-            <div v-if="job.employment_type" class="flex items-center text-sm text-gray-500">
-              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2-2v2m8 0V6a2 2 0 012 2v6a2 2 0 01-2 2H8a2 2 0 01-2-2V8a2 2 0 012-2V6"></path>
-              </svg>
-              {{ job.employment_type }}
-            </div>
-
-            <div v-if="job.seniority_level" class="flex items-center text-sm text-gray-500">
-              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-              </svg>
-              {{ job.seniority_level }}
-            </div>
-          </div>
-
-          <!-- Footer -->
-          <div class="flex items-center justify-between text-xs text-gray-400">
-            <span>Processed: {{ formatDate(job.created_at) }}</span>
-            <span class="text-blue-600 hover:text-blue-700">View Details →</span>
           </div>
         </div>
       </div>
@@ -209,7 +371,7 @@ onMounted(() => {
         <div class="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
           <!-- Modal Header -->
           <div class="flex items-center justify-between p-6 border-b border-gray-200">
-            <h2 class="text-2xl font-bold text-gray-900">{{ selectedJob.job_title }}</h2>
+            <h2 class="text-2xl font-bold text-gray-900 text-left">{{ selectedJob.job_title }}</h2>
             <button 
               @click="closeModal"
               class="text-gray-400 hover:text-gray-600 transition-colors"
@@ -225,50 +387,53 @@ onMounted(() => {
             <!-- Job Overview -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <h3 class="text-lg font-semibold text-gray-900 mb-3">Job Overview</h3>
+                <h3 class="text-lg font-semibold text-gray-900 mb-3 text-left">Job Overview</h3>
                 <div class="space-y-3">
-                  <div>
-                    <span class="text-sm font-medium text-gray-500">Company:</span>
-                    <p class="text-gray-900">{{ selectedJob.employer }}</p>
+                  <div class="text-left">
+                    <span class="text-sm font-medium text-gray-500 text-left">Company:</span>
+                    <p class="text-gray-900 text-left">{{ selectedJob.employer }}</p>
                   </div>
-                  <div v-if="selectedJob.job_location">
-                    <span class="text-sm font-medium text-gray-500">Location:</span>
-                    <p class="text-gray-900">{{ selectedJob.job_location }}</p>
+                  <div v-if="selectedJob.job_location" class="text-left">
+                    <span class="text-sm font-medium text-gray-500 text-left">Location:</span>
+                    <p class="text-gray-900 text-left">{{ selectedJob.job_location }}</p>
                   </div>
-                  <div v-if="selectedJob.employment_type">
-                    <span class="text-sm font-medium text-gray-500">Employment Type:</span>
-                    <p class="text-gray-900">{{ selectedJob.employment_type }}</p>
+                  <div v-if="selectedJob.employment_type" class="text-left">
+                    <span class="text-sm font-medium text-gray-500 text-left">Employment Type:</span>
+                    <p class="text-gray-900 text-left">{{ selectedJob.employment_type }}</p>
                   </div>
-                  <div v-if="selectedJob.seniority_level">
-                    <span class="text-sm font-medium text-gray-500">Seniority Level:</span>
-                    <p class="text-gray-900">{{ selectedJob.seniority_level }}</p>
+                  <div v-if="selectedJob.seniority_level" class="text-left">
+                    <span class="text-sm font-medium text-gray-500 text-left">Seniority Level:</span>
+                    <p class="text-gray-900 text-left">{{ selectedJob.seniority_level }}</p>
                   </div>
-                  <div v-if="selectedJob.job_function">
-                    <span class="text-sm font-medium text-gray-500">Job Function:</span>
-                    <p class="text-gray-900">{{ selectedJob.job_function }}</p>
+                  <div v-if="selectedJob.job_function" class="text-left">
+                    <span class="text-sm font-medium text-gray-500 text-left">Job Function:</span>
+                    <p class="text-gray-900 text-left">{{ selectedJob.job_function }}</p>
                   </div>
-                  <div v-if="selectedJob.industries">
-                    <span class="text-sm font-medium text-gray-500">Industries:</span>
-                    <p class="text-gray-900">{{ selectedJob.industries }}</p>
+                  <div v-if="selectedJob.industries" class="text-left">
+                    <span class="text-sm font-medium text-gray-500 text-left">Industries:</span>
+                    <p class="text-gray-900 text-left">{{ selectedJob.industries }}</p>
                   </div>
                 </div>
               </div>
 
               <div>
-                <h3 class="text-lg font-semibold text-gray-900 mb-3">Processing Info</h3>
+                <h3 class="text-lg font-semibold text-gray-900 mb-3 text-left">Processing Info</h3>
                 <div class="space-y-3">
-                  <div>
-                    <span class="text-sm font-medium text-gray-500">Run ID:</span>
-                    <p class="text-gray-900 font-mono text-sm">{{ selectedJob.runid }}</p>
+                  <div class="text-left">
+                    <span class="text-sm font-medium text-gray-500 text-left">Run ID:</span>
+                    <p class="text-gray-900 font-mono text-sm text-left">{{ selectedJob.runid }}</p>
                   </div>
-                  <div>
-                    <span class="text-sm font-medium text-gray-500">Processed:</span>
-                    <p class="text-gray-900">{{ formatDate(selectedJob.created_at) }}</p>
+                  <div class="text-left">
+                    <span class="text-sm font-medium text-gray-500 text-left">Processed:</span>
+                    <p class="text-gray-900 text-left">{{ formatDate(selectedJob.created_at) }}</p>
                   </div>
-                  <div>
-                    <span class="text-sm font-medium text-gray-500">Status:</span>
-                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                      {{ selectedJob.processing_status }}
+                  <div class="text-left">
+                    <span class="text-sm font-medium text-gray-500 text-left">Status:</span>
+                    <span 
+                      class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                      :class="getStatusClass(selectedJob.status)"
+                    >
+                      {{ getStatusText(selectedJob.status) }}
                     </span>
                   </div>
                 </div>
@@ -277,10 +442,10 @@ onMounted(() => {
 
             <!-- AI Generated Summary -->
             <div v-if="selectedJob.job_summary">
-              <h3 class="text-lg font-semibold text-gray-900 mb-3">AI Summary</h3>
+              <h3 class="text-lg font-semibold text-gray-900 mb-3 text-left">AI Summary</h3>
               <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <div 
-                  class="text-gray-900 prose prose-sm max-w-none"
+                  class="text-gray-900 prose prose-sm max-w-none text-left"
                   v-html="formatJobDescription(selectedJob.job_summary)"
                 ></div>
               </div>
@@ -288,10 +453,10 @@ onMounted(() => {
 
             <!-- Original Job Description -->
             <div v-if="selectedJob.job_description">
-              <h3 class="text-lg font-semibold text-gray-900 mb-3">Original Job Description</h3>
+              <h3 class="text-lg font-semibold text-gray-900 mb-3 text-left">Original Job Description</h3>
               <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 max-h-64 overflow-y-auto">
                 <div 
-                  class="text-gray-900 prose prose-sm max-w-none"
+                  class="text-gray-900 prose prose-sm max-w-none text-left"
                   v-html="formatJobDescription(selectedJob.job_description)"
                 ></div>
               </div>
@@ -299,10 +464,10 @@ onMounted(() => {
 
             <!-- AI Generated Cover Letter -->
             <div v-if="selectedJob.cover_letter">
-              <h3 class="text-lg font-semibold text-gray-900 mb-3">AI Generated Cover Letter</h3>
+              <h3 class="text-lg font-semibold text-gray-900 mb-3 text-left">AI Generated Cover Letter</h3>
               <div class="bg-green-50 border border-green-200 rounded-lg p-4 max-h-96 overflow-y-auto">
                 <div 
-                  class="text-gray-900 prose prose-sm max-w-none"
+                  class="text-gray-900 prose prose-sm max-w-none text-left"
                   v-html="formatJobDescription(selectedJob.cover_letter)"
                 ></div>
               </div>

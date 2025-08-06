@@ -48,7 +48,8 @@ app.get('/api/processed-jobs', (req, res) => {
             j.employment_type,
             j.job_function,
             j.seniority_level,
-            j.industries
+            j.industries,
+            j.status
         FROM processed_jobs pj
         JOIN jobs j ON pj.job_id = j.id
         WHERE pj.processing_status = 'completed'
@@ -89,7 +90,8 @@ app.get('/api/processed-jobs/:id', (req, res) => {
             j.employment_type,
             j.job_function,
             j.seniority_level,
-            j.industries
+            j.industries,
+            j.status
         FROM processed_jobs pj
         JOIN jobs j ON pj.job_id = j.id
         WHERE pj.id = ? AND pj.processing_status = 'completed'
