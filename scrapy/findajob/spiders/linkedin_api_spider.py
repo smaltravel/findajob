@@ -126,10 +126,16 @@ class LinkedInSpider(scrapy.Spider):
 
     @staticmethod
     def __parse_job_summary(card):
+        lis = [
+            card.xpath('//section[1]/div/ul/li[1]/span/text()').get(),
+            card.xpath('//section[1]/div/ul/li[2]/span/text()').get(),
+            card.xpath('//section[1]/div/ul/li[3]/span/text()').get(),
+            card.xpath('//section[1]/div/ul/li[4]/span/text()').get(),
+        ]
         return {
             'job_description': LinkedInSpider.__parse_line(card.css('div.show-more-less-html__markup').get()),
-            'seniority_level': LinkedInSpider.__parse_line(card.xpath('//section[1]/div/ul/li[1]/span/text()').get(), 'N/A'),
-            'employment_type': LinkedInSpider.__parse_line(card.xpath('//section[1]/div/ul/li[2]/span/text()').get(), 'N/A'),
-            'job_function': LinkedInSpider.__parse_line(card.xpath('//section[1]/div/ul/li[3]/span/text()').get(), 'N/A'),
-            'industries': LinkedInSpider.__parse_line(card.xpath('//section[1]/div/ul/li[4]/span/text()').get(), 'N/A'),
+            'seniority_level': LinkedInSpider.__parse_line(lis[0] or card.xpath('//section[2]/div/ul/li[1]/span/text()').get(), 'N/A'),
+            'employment_type': LinkedInSpider.__parse_line(lis[1] or card.xpath('//section[2]/div/ul/li[2]/span/text()').get(), 'N/A'),
+            'job_function': LinkedInSpider.__parse_line(lis[2] or card.xpath('//section[2]/div/ul/li[3]/span/text()').get(), 'N/A'),
+            'industries': LinkedInSpider.__parse_line(lis[3] or card.xpath('//section[2]/div/ul/li[4]/span/text()').get(), 'N/A'),
         }

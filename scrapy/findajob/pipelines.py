@@ -186,14 +186,6 @@ class DatabasePipeline:
         return item
 
     def close_spider(self, spider):
-        # Get count of jobs inserted in this session
-        self.cursor.execute('''
-            SELECT COUNT(*) FROM jobs 
-            WHERE keywords = ? AND location = ? AND created_at >= datetime('now', '-1 hour')
-        ''', (self.keywords, self.location))
-        count = self.cursor.fetchone()[0]
-
-        spider.logger.info(f"Spider finished. Inserted {count} new jobs")
         self.conn.close()
 
 
