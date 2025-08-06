@@ -6,7 +6,7 @@ This script reads job records from the database by runid, processes them with a 
 to generate CVs, cover letters, and job summaries, and stores the results in a new table.
 
 Usage:
-    python job_processor.py --runid <runid> [--database <path>] [--llm-url <url>]
+    python job_processor.py --runid <runid> --cv_json <path> [--database <path>]
 """
 
 import argparse
@@ -16,8 +16,8 @@ import os
 import sys
 from datetime import datetime
 from typing import Dict, List
-import requests
 import logging
+from providers import AIProvider, OllamaProvider, AIProviderConfig
 
 # Configure logging
 logging.basicConfig(
@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 class JobProcessor:
     """Processes job records and generates CVs, cover letters, and summaries using a local LLM."""
 
-    def __init__(self, database_path: str, llm_url: str = "http://localhost:11434/api/generate", model: str = "hr-consultant"):
+    def __init__(self, database_path: str, ai_provider: AIProvider):
         """
         Initialize the JobProcessor.
 
@@ -39,8 +39,7 @@ class JobProcessor:
             llm_url: URL of the local LLM API (default: Ollama)
         """
         self.database_path = database_path
-        self.llm_url = llm_url
-        self.model = model
+        self.ai_provider = ai_provider
         self.conn = None
         self.cursor = None
 
@@ -118,89 +117,6 @@ class JobProcessor:
         logger.info(f"Found {len(job_records)} new jobs for runid: {runid}")
         return job_records
 
-    def call_local_llm(self, prompt: str, model: str = "llama3.2") -> str:
-        """
-        Call the local LLM API to generate content.
-
-        Args:
-            prompt: The prompt to send to the LLM
-            model: The model to use (default: llama3.2)
-
-        Returns:
-            Generated text from the LLM
-        """
-        try:
-            payload = {
-                "model": model,
-                "prompt": prompt,
-                "stream": False
-            }
-
-            response = requests.post(self.llm_url, json=payload, timeout=120)
-            response.raise_for_status()
-
-            result = response.json()
-            return result.get('response', '').strip()
-
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Failed to call LLM API: {e}")
-            raise
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse LLM response: {e}")
-            raise
-
-    def generate_cover_letter_prompt(self, job_data: Dict) -> str:
-        """Generate a prompt for cover letter creation based on job data."""
-        return f"""
-        Create a compelling cover letter for the following job position.
-        
-        Job Title: {job_data.get('job_title', 'N/A')}
-        Company: {job_data.get('employer', 'N/A')}
-        Location: {job_data.get('job_location', 'N/A')}
-        Employment Type: {job_data.get('employment_type', 'N/A')}
-        Seniority Level: {job_data.get('seniority_level', 'N/A')}
-        Job Function: {job_data.get('job_function', 'N/A')}
-        Industries: {job_data.get('industries', 'N/A')}
-        
-        Job Description:
-        {job_data.get('job_description', 'N/A')}
-        
-        Please create a professional cover letter that:
-        1. Addresses the hiring manager professionally
-        2. Explains why you're interested in this specific role and company
-        3. Highlights relevant skills and experience
-        4. Demonstrates understanding of the company and role
-        5. Includes a strong closing statement
-        6. Is concise but comprehensive (1-2 pages)
-        
-        Make it personal, specific to this opportunity, and compelling.
-        Use language for generated content the same with Job description.
-        """
-
-    def generate_job_summary_prompt(self, job_data: Dict) -> str:
-        """Generate a prompt for job summary creation based on job data."""
-        return f"""
-        Create a concise summary of the following job posting.
-        
-        Job Title: {job_data.get('job_title', 'N/A')}
-        Company: {job_data.get('employer', 'N/A')}
-        Location: {job_data.get('job_location', 'N/A')}
-        Employment Type: {job_data.get('employment_type', 'N/A')}
-        Seniority Level: {job_data.get('seniority_level', 'N/A')}
-        Job Function: {job_data.get('job_function', 'N/A')}
-        Industries: {job_data.get('industries', 'N/A')}
-        
-        Job Description:
-        {job_data.get('job_description', 'N/A')}
-        
-        Please create a brief summary (2-3 sentences) that captures:
-        1. The key responsibilities of the role
-        2. The main requirements or qualifications
-        3. What makes this opportunity interesting or unique
-        
-        Keep it concise but informative.
-        """
-
     def process_job(self, job_data: Dict) -> Dict:
         """
         Process a single job record to generate CV, cover letter, and summary.
@@ -215,16 +131,19 @@ class JobProcessor:
         runid = job_data['runid']
 
         logger.info(
-            f"Processing job {job_id}: {job_data.get('job_title', 'N/A')} at {job_data.get('employer', 'N/A')}")
+            f"Processing job {job_id}: {job_data.get('job_title')} at {job_data.get('employer')}")
 
         try:
+            # Update context for the current job
+            self.ai_provider.set_job(job_data)
+
             # Generate cover letter
-            cover_letter_prompt = self.generate_cover_letter_prompt(job_data)
-            cover_letter = self.call_local_llm(cover_letter_prompt, self.model)
+            logger.info("Generating cover letter")
+            cover_letter = self.ai_provider.cover_letter()
 
             # Generate job summary
-            summary_prompt = self.generate_job_summary_prompt(job_data)
-            job_summary = self.call_local_llm(summary_prompt, self.model)
+            logger.info("Generating job summary")
+            job_summary = self.ai_provider.job_description()
 
             return {
                 'job_id': job_id,
@@ -314,10 +233,8 @@ def main():
                         help='Run ID to process jobs for')
     parser.add_argument('--database', default='../webapp/jobs.db',
                         help='Path to the SQLite database (default: ../webapp/jobs.db)')
-    parser.add_argument('--llm-url', default='http://localhost:11434/api/generate',
-                        help='URL of the local LLM API (default: http://localhost:11434/api/generate)')
-    parser.add_argument('--model', default='hr-consultant',
-                        help='LLM model to use (default: hr-consultant)')
+    parser.add_argument('--cv_json', required=True,
+                        help='Path to the user CV JSON file')
 
     args = parser.parse_args()
 
@@ -327,7 +244,13 @@ def main():
         sys.exit(1)
 
     # Initialize processor
-    processor = JobProcessor(args.database, args.llm_url)
+    processor = JobProcessor(args.database, OllamaProvider(
+        AIProviderConfig(
+            model="deepseek-r1:7b",
+            base_url="http://localhost:11434",
+            user_cv=json.load(open(args.cv_json))
+        )
+    ))
 
     try:
         # Connect to database
