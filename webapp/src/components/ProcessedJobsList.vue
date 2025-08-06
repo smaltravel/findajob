@@ -41,41 +41,89 @@ const loadJobs = async () => {
 
 const parseJobSummary = (jobSummaryJson) => {
   if (!jobSummaryJson) return null
-  try {
-    return JSON.parse(jobSummaryJson)
-  } catch (e) {
-    console.error('Error parsing job summary JSON:', e)
-    return null
+  
+  // If it's already an object, return it
+  if (typeof jobSummaryJson === 'object') {
+    return jobSummaryJson
   }
+  
+  // If it's a string, try to parse it
+  if (typeof jobSummaryJson === 'string') {
+    try {
+      return JSON.parse(jobSummaryJson)
+    } catch (e) {
+      console.error('Error parsing job summary JSON:', e)
+      console.log('Raw job summary:', jobSummaryJson)
+      return null
+    }
+  }
+  
+  return null
 }
 
 const parseCoverLetter = (coverLetterJson) => {
   if (!coverLetterJson) return null
-  try {
-    return JSON.parse(coverLetterJson)
-  } catch (e) {
-    console.error('Error parsing cover letter JSON:', e)
-    return null
+  
+  // If it's already an object, return it
+  if (typeof coverLetterJson === 'object') {
+    return coverLetterJson
   }
+  
+  // If it's a string, try to parse it
+  if (typeof coverLetterJson === 'string') {
+    try {
+      return JSON.parse(coverLetterJson)
+    } catch (e) {
+      console.error('Error parsing cover letter JSON:', e)
+      console.log('Raw cover letter:', coverLetterJson)
+      return null
+    }
+  }
+  
+  return null
 }
 
 const openJobModal = async (jobId) => {
   try {
+    console.log('Opening modal for job ID:', jobId)
+    
     const response = await fetch(`${API_BASE_URL}/processed-jobs/${jobId}`)
     if (!response.ok) {
-      throw new Error('Failed to load job details')
+      throw new Error(`Failed to load job details: ${response.status}`)
     }
     
     const jobData = await response.json()
+    console.log('Job data received:', jobData)
+    
+    // Parse JSON fields with error handling
+    let jobSummaryParsed = null
+    let coverLetterParsed = null
+    
+    try {
+      jobSummaryParsed = parseJobSummary(jobData.job_summary)
+    } catch (e) {
+      console.warn('Failed to parse job summary:', e)
+    }
+    
+    try {
+      coverLetterParsed = parseCoverLetter(jobData.cover_letter)
+    } catch (e) {
+      console.warn('Failed to parse cover letter:', e)
+    }
+    
     selectedJob.value = {
       ...jobData,
-      job_summary_parsed: parseJobSummary(jobData.job_summary),
-      cover_letter_parsed: parseCoverLetter(jobData.cover_letter)
+      job_summary_parsed: jobSummaryParsed,
+      cover_letter_parsed: coverLetterParsed
     }
+    
+    console.log('Selected job set:', selectedJob.value)
     showModal.value = true
+    console.log('Modal should be visible now')
+    
   } catch (err) {
     console.error('Error loading job details:', err)
-    alert('Failed to load job details')
+    alert(`Failed to load job details: ${err.message}`)
   }
 }
 
@@ -103,16 +151,32 @@ const truncateText = (text, maxLength = 150) => {
 
 const getJobSummaryText = (job) => {
   if (job.job_summary_parsed?.summary) {
-    return job.job_summary_parsed.summary
+    let summary = job.job_summary_parsed.summary
+    
+    // Add alignment info if available
+    if (job.job_summary_parsed.background_aligns) {
+      const alignmentText = getAlignmentText(job.job_summary_parsed.background_aligns)
+      summary += ` (${alignmentText})`
+    }
+    
+    return summary
   }
   return job.job_summary || ''
+}
+
+const getAlignmentText = (score) => {
+  if (score <= 1) return 'Poor alignment'
+  if (score <= 2) return 'Fair alignment'
+  if (score <= 3) return 'Good alignment'
+  if (score <= 4) return 'Very good alignment'
+  return 'Excellent alignment'
 }
 
 const formatJobDescription = (description) => {
   if (!description) return ''
   
-  // Clean and format the job description
-  let formatted = description
+  // Convert to string if it's not already
+  let formatted = String(description)
   
   // Replace common HTML entities
   formatted = formatted.replace(/&amp;/g, '&')
@@ -478,6 +542,13 @@ onMounted(() => {
       <!-- Job Details Modal -->
       <div v-if="showModal && selectedJob" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
         <div class="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+          <!-- Debug Info (remove in production) -->
+          <div class="bg-yellow-100 p-2 text-xs text-gray-600">
+            Debug: Modal visible, selectedJob: {{ selectedJob ? 'Yes' : 'No' }}, 
+            Job ID: {{ selectedJob?.id }}, 
+            Title: {{ selectedJob?.job_title }}
+          </div>
+          
           <!-- Modal Header -->
           <div class="flex items-center justify-between p-6 border-b border-gray-200">
             <h2 class="text-2xl font-bold text-gray-900 text-left">{{ selectedJob.job_title }}</h2>
@@ -577,7 +648,7 @@ onMounted(() => {
                   <h4 class="font-medium text-gray-900 mb-2 text-left">Summary</h4>
                   <div 
                     class="text-gray-900 prose prose-sm max-w-none text-left"
-                    v-html="formatJobDescription(selectedJob.job_summary_parsed.summary)"
+                    v-html="typeof selectedJob.job_summary_parsed.summary === 'string' ? formatJobDescription(selectedJob.job_summary_parsed.summary) : selectedJob.job_summary_parsed.summary"
                   ></div>
                 </div>
                 
@@ -586,7 +657,7 @@ onMounted(() => {
                   <h4 class="font-medium text-gray-900 mb-2 text-left">Key Responsibilities</h4>
                   <div 
                     class="text-gray-900 prose prose-sm max-w-none text-left"
-                    v-html="formatJobDescription(selectedJob.job_summary_parsed.responsibilities)"
+                    v-html="typeof selectedJob.job_summary_parsed.responsibilities === 'string' ? formatJobDescription(selectedJob.job_summary_parsed.responsibilities) : selectedJob.job_summary_parsed.responsibilities"
                   ></div>
                 </div>
                 
@@ -605,17 +676,35 @@ onMounted(() => {
                   <h4 class="font-medium text-gray-900 mb-2 text-left">Opportunity Interest</h4>
                   <div 
                     class="text-gray-900 prose prose-sm max-w-none text-left"
-                    v-html="formatJobDescription(selectedJob.job_summary_parsed.opportunity_interest)"
+                    v-html="typeof selectedJob.job_summary_parsed.opportunity_interest === 'string' ? formatJobDescription(selectedJob.job_summary_parsed.opportunity_interest) : selectedJob.job_summary_parsed.opportunity_interest"
                   ></div>
                 </div>
                 
                 <!-- Background Alignment -->
                 <div v-if="selectedJob.job_summary_parsed.background_aligns" class="text-left">
                   <h4 class="font-medium text-gray-900 mb-2 text-left">Background Alignment</h4>
-                  <div 
-                    class="text-gray-900 prose prose-sm max-w-none text-left"
-                    v-html="formatJobDescription(selectedJob.job_summary_parsed.background_aligns)"
-                  ></div>
+                  <div class="flex items-center space-x-3">
+                    <div class="flex items-center space-x-1">
+                      <span 
+                        v-for="i in 5" 
+                        :key="i"
+                        class="w-4 h-4 rounded-full border-2"
+                        :class="i <= selectedJob.job_summary_parsed.background_aligns 
+                          ? 'bg-blue-500 border-blue-500' 
+                          : 'bg-gray-200 border-gray-300'"
+                      ></span>
+                    </div>
+                    <span class="text-sm text-gray-600">
+                      {{ selectedJob.job_summary_parsed.background_aligns }}/5 alignment
+                    </span>
+                  </div>
+                  <div class="mt-2 text-xs text-gray-500">
+                    <span v-if="selectedJob.job_summary_parsed.background_aligns <= 1">Poor alignment</span>
+                    <span v-else-if="selectedJob.job_summary_parsed.background_aligns <= 2">Fair alignment</span>
+                    <span v-else-if="selectedJob.job_summary_parsed.background_aligns <= 3">Good alignment</span>
+                    <span v-else-if="selectedJob.job_summary_parsed.background_aligns <= 4">Very good alignment</span>
+                    <span v-else>Excellent alignment</span>
+                  </div>
                 </div>
               </div>
               
@@ -656,7 +745,7 @@ onMounted(() => {
                   <h4 class="font-medium text-gray-900 mb-2 text-left">Letter Content</h4>
                   <div 
                     class="text-gray-900 prose prose-sm max-w-none text-left"
-                    v-html="formatJobDescription(selectedJob.cover_letter_parsed.letter_content)"
+                    v-html="typeof selectedJob.cover_letter_parsed.letter_content === 'string' ? formatJobDescription(selectedJob.cover_letter_parsed.letter_content) : selectedJob.cover_letter_parsed.letter_content"
                   ></div>
                 </div>
                 
@@ -665,7 +754,7 @@ onMounted(() => {
                   <h4 class="font-medium text-gray-900 mb-2 text-left">Closing</h4>
                   <div 
                     class="text-gray-900 prose prose-sm max-w-none text-left"
-                    v-html="formatJobDescription(selectedJob.cover_letter_parsed.letter_closing)"
+                    v-html="typeof selectedJob.cover_letter_parsed.letter_closing === 'string' ? formatJobDescription(selectedJob.cover_letter_parsed.letter_closing) : selectedJob.cover_letter_parsed.letter_closing"
                   ></div>
                 </div>
               </div>

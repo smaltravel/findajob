@@ -9,10 +9,10 @@ logger = logging.getLogger(__name__)
 
 
 class JobSummary(BaseModel):
-    responsibilities: str
+    responsibilities: List[str]
     requirements: List[str]
     opportunity_interest: str
-    background_aligns: str
+    background_aligns: int
     summary: str
 
 
@@ -134,11 +134,11 @@ class OllamaProvider(AIProvider):
         prompt = """
         TASK:
         Create a concise job summary that captures:
-            1. The key responsibilities of the role
-            2. The main requirements or qualifications
-            3. What makes this opportunity interesting or unique
-            4. How it aligns with the candidate's background. Set level of alignment from 1 to 5.
-            5. Job summary in 3-4 sentences
+            1. Responsibilities: The key responsibilities of the role
+            2. Requirements: The main requirements or qualifications
+            3. Opportunity Interest: What makes this opportunity interesting or unique for the user. use personal pronouns like "you" and "your".
+            4. Background Alignment: How it aligns with the candidate's background. Set level of alignment from 1 to 5.
+            5. Summary: Job summary in 3-4 sentences based only on the job description.
             
         Keep it concise but informative and personalized to the candidate's profile.
         """
