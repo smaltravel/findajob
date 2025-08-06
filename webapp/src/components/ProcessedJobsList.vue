@@ -24,13 +24,38 @@ const loadJobs = async () => {
     }
     
     const data = await response.json()
-    jobs.value = data.jobs || []
+    // Parse JSON fields for each job
+    jobs.value = (data.jobs || []).map(job => ({
+      ...job,
+      job_summary_parsed: parseJobSummary(job.job_summary),
+      cover_letter_parsed: parseCoverLetter(job.cover_letter)
+    }))
     
   } catch (err) {
     console.error('Error loading jobs:', err)
     error.value = 'Failed to load processed jobs'
   } finally {
     loading.value = false
+  }
+}
+
+const parseJobSummary = (jobSummaryJson) => {
+  if (!jobSummaryJson) return null
+  try {
+    return JSON.parse(jobSummaryJson)
+  } catch (e) {
+    console.error('Error parsing job summary JSON:', e)
+    return null
+  }
+}
+
+const parseCoverLetter = (coverLetterJson) => {
+  if (!coverLetterJson) return null
+  try {
+    return JSON.parse(coverLetterJson)
+  } catch (e) {
+    console.error('Error parsing cover letter JSON:', e)
+    return null
   }
 }
 
@@ -41,7 +66,12 @@ const openJobModal = async (jobId) => {
       throw new Error('Failed to load job details')
     }
     
-    selectedJob.value = await response.json()
+    const jobData = await response.json()
+    selectedJob.value = {
+      ...jobData,
+      job_summary_parsed: parseJobSummary(jobData.job_summary),
+      cover_letter_parsed: parseCoverLetter(jobData.cover_letter)
+    }
     showModal.value = true
   } catch (err) {
     console.error('Error loading job details:', err)
@@ -69,6 +99,13 @@ const formatDate = (dateString) => {
 const truncateText = (text, maxLength = 150) => {
   if (!text) return ''
   return text.length > maxLength ? text.substring(0, maxLength) + '...' : text
+}
+
+const getJobSummaryText = (job) => {
+  if (job.job_summary_parsed?.summary) {
+    return job.job_summary_parsed.summary
+  }
+  return job.job_summary || ''
 }
 
 const formatJobDescription = (description) => {
@@ -211,9 +248,9 @@ onMounted(() => {
       </div>
 
       <!-- Error State -->
-      <div v-else-if="error" class="text-center py-12">
-        <div class="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto">
-          <p class="text-red-600 mb-4">{{ error }}</p>
+      <div v-else-if="error" class="py-12">
+        <div class="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md">
+          <p class="text-red-600 mb-4 text-left">{{ error }}</p>
           <button 
             @click="loadJobs"
             class="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg transition-colors"
@@ -224,13 +261,13 @@ onMounted(() => {
       </div>
 
       <!-- Empty State -->
-      <div v-else-if="jobs.length === 0" class="text-center py-12">
-        <div class="bg-gray-50 border border-gray-200 rounded-lg p-8 max-w-md mx-auto">
-          <svg class="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div v-else-if="jobs.length === 0" class="py-12">
+        <div class="bg-gray-50 border border-gray-200 rounded-lg p-8 max-w-md">
+          <svg class="h-12 w-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2-2v2m8 0V6a2 2 0 012 2v6a2 2 0 01-2 2H8a2 2 0 01-2-2V8a2 2 0 012-2V6"></path>
           </svg>
-          <h3 class="text-lg font-medium text-gray-900 mb-2">No processed jobs found</h3>
-          <p class="text-gray-600">Jobs will appear here after they have been processed by the AI system.</p>
+          <h3 class="text-lg font-medium text-gray-900 mb-2 text-left">No processed jobs found</h3>
+          <p class="text-gray-600 text-left">Jobs will appear here after they have been processed by the AI system.</p>
         </div>
       </div>
 
@@ -317,7 +354,7 @@ onMounted(() => {
             <!-- Job Summary -->
             <div class="mb-4">
               <p class="text-sm text-gray-700 line-clamp-3 text-left">
-                {{ truncateText(job.job_summary) }}
+                {{ truncateText(getJobSummaryText(job)) }}
               </p>
             </div>
 
@@ -424,7 +461,7 @@ onMounted(() => {
                 </div>
                 
                 <p class="text-sm text-gray-700 line-clamp-2 text-left">
-                  {{ truncateText(job.job_summary, 200) }}
+                  {{ truncateText(getJobSummaryText(job), 200) }}
                 </p>
               </div>
               
@@ -532,9 +569,58 @@ onMounted(() => {
             </div>
 
             <!-- AI Generated Summary -->
-            <div v-if="selectedJob.job_summary">
+            <div v-if="selectedJob.job_summary_parsed || selectedJob.job_summary">
               <h3 class="text-lg font-semibold text-gray-900 mb-3 text-left">AI Summary</h3>
-              <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div v-if="selectedJob.job_summary_parsed" class="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-4 text-left">
+                <!-- Summary -->
+                <div class="text-left">
+                  <h4 class="font-medium text-gray-900 mb-2 text-left">Summary</h4>
+                  <div 
+                    class="text-gray-900 prose prose-sm max-w-none text-left"
+                    v-html="formatJobDescription(selectedJob.job_summary_parsed.summary)"
+                  ></div>
+                </div>
+                
+                <!-- Responsibilities -->
+                <div v-if="selectedJob.job_summary_parsed.responsibilities" class="text-left">
+                  <h4 class="font-medium text-gray-900 mb-2 text-left">Key Responsibilities</h4>
+                  <div 
+                    class="text-gray-900 prose prose-sm max-w-none text-left"
+                    v-html="formatJobDescription(selectedJob.job_summary_parsed.responsibilities)"
+                  ></div>
+                </div>
+                
+                <!-- Requirements -->
+                <div v-if="selectedJob.job_summary_parsed.requirements && selectedJob.job_summary_parsed.requirements.length > 0" class="text-left">
+                  <h4 class="font-medium text-gray-900 mb-2 text-left">Requirements</h4>
+                  <ul class="list-disc list-inside text-gray-900 space-y-1 text-left">
+                    <li v-for="(req, index) in selectedJob.job_summary_parsed.requirements" :key="index" class="text-left">
+                      {{ req }}
+                    </li>
+                  </ul>
+                </div>
+                
+                <!-- Opportunity Interest -->
+                <div v-if="selectedJob.job_summary_parsed.opportunity_interest" class="text-left">
+                  <h4 class="font-medium text-gray-900 mb-2 text-left">Opportunity Interest</h4>
+                  <div 
+                    class="text-gray-900 prose prose-sm max-w-none text-left"
+                    v-html="formatJobDescription(selectedJob.job_summary_parsed.opportunity_interest)"
+                  ></div>
+                </div>
+                
+                <!-- Background Alignment -->
+                <div v-if="selectedJob.job_summary_parsed.background_aligns" class="text-left">
+                  <h4 class="font-medium text-gray-900 mb-2 text-left">Background Alignment</h4>
+                  <div 
+                    class="text-gray-900 prose prose-sm max-w-none text-left"
+                    v-html="formatJobDescription(selectedJob.job_summary_parsed.background_aligns)"
+                  ></div>
+                </div>
+              </div>
+              
+              <!-- Fallback for old format -->
+              <div v-else class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
                 <div 
                   class="text-gray-900 prose prose-sm max-w-none text-left"
                   v-html="formatJobDescription(selectedJob.job_summary)"
@@ -554,9 +640,38 @@ onMounted(() => {
             </div>
 
             <!-- AI Generated Cover Letter -->
-            <div v-if="selectedJob.cover_letter">
+            <div v-if="selectedJob.cover_letter_parsed || selectedJob.cover_letter">
               <h3 class="text-lg font-semibold text-gray-900 mb-3 text-left">AI Generated Cover Letter</h3>
-              <div class="bg-green-50 border border-green-200 rounded-lg p-4 max-h-96 overflow-y-auto">
+              <div v-if="selectedJob.cover_letter_parsed" class="bg-green-50 border border-green-200 rounded-lg p-4 max-h-96 overflow-y-auto space-y-4 text-left">
+                <!-- Subject -->
+                <div v-if="selectedJob.cover_letter_parsed.subject" class="text-left">
+                  <h4 class="font-medium text-gray-900 mb-2 text-left">Subject</h4>
+                  <div class="text-gray-900 font-medium text-left">
+                    {{ selectedJob.cover_letter_parsed.subject }}
+                  </div>
+                </div>
+                
+                <!-- Letter Content -->
+                <div v-if="selectedJob.cover_letter_parsed.letter_content" class="text-left">
+                  <h4 class="font-medium text-gray-900 mb-2 text-left">Letter Content</h4>
+                  <div 
+                    class="text-gray-900 prose prose-sm max-w-none text-left"
+                    v-html="formatJobDescription(selectedJob.cover_letter_parsed.letter_content)"
+                  ></div>
+                </div>
+                
+                <!-- Letter Closing -->
+                <div v-if="selectedJob.cover_letter_parsed.letter_closing" class="text-left">
+                  <h4 class="font-medium text-gray-900 mb-2 text-left">Closing</h4>
+                  <div 
+                    class="text-gray-900 prose prose-sm max-w-none text-left"
+                    v-html="formatJobDescription(selectedJob.cover_letter_parsed.letter_closing)"
+                  ></div>
+                </div>
+              </div>
+              
+              <!-- Fallback for old format -->
+              <div v-else class="bg-green-50 border border-green-200 rounded-lg p-4 max-h-96 overflow-y-auto text-left">
                 <div 
                   class="text-gray-900 prose prose-sm max-w-none text-left"
                   v-html="formatJobDescription(selectedJob.cover_letter)"
