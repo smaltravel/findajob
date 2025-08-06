@@ -110,6 +110,63 @@ app.get('/api/processed-jobs/:id', (req, res) => {
     });
 });
 
+// Update job status endpoint
+app.put('/api/processed-jobs/:id/status', (req, res) => {
+    const db = getDb();
+    const jobId = req.params.id;
+    const { status } = req.body;
+    
+    // Validate status
+    const validStatuses = [
+        'new', 'applied', 'user_rejected', 'filter_rejected', 
+        'interview_scheduled', 'interview_completed', 'offer_received', 
+        'offer_accepted', 'offer_rejected', 'not_answered', 'employer_rejected'
+    ];
+    
+    if (!validStatuses.includes(status)) {
+        return res.status(400).json({ error: 'Invalid status' });
+    }
+    
+    // First get the job_id from processed_jobs table
+    const getJobQuery = `
+        SELECT job_id FROM processed_jobs WHERE id = ?
+    `;
+    
+    db.get(getJobQuery, [jobId], (err, row) => {
+        if (err) {
+            console.error('Database error:', err);
+            res.status(500).json({ error: 'Database error' });
+            db.close();
+        } else if (!row) {
+            res.status(404).json({ error: 'Job not found' });
+            db.close();
+        } else {
+            // Update the status in the jobs table
+            const updateQuery = `
+                UPDATE jobs 
+                SET status = ?, updated_at = CURRENT_TIMESTAMP 
+                WHERE id = ?
+            `;
+            
+            db.run(updateQuery, [status, row.job_id], function(err) {
+                if (err) {
+                    console.error('Database error:', err);
+                    res.status(500).json({ error: 'Database error' });
+                } else if (this.changes === 0) {
+                    res.status(404).json({ error: 'Job not found' });
+                } else {
+                    res.json({ 
+                        message: 'Status updated successfully',
+                        job_id: row.job_id,
+                        new_status: status
+                    });
+                }
+                db.close();
+            });
+        }
+    });
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });

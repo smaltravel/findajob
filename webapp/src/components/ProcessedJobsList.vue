@@ -157,6 +157,38 @@ const getStatusText = (status) => {
   }
 }
 
+const updateJobStatus = async (jobId, newStatus) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/processed-jobs/${jobId}/status`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ status: newStatus })
+    })
+    
+    if (!response.ok) {
+      throw new Error('Failed to update job status')
+    }
+    
+    // Update the local job data
+    const job = jobs.value.find(j => j.id === jobId)
+    if (job) {
+      job.status = newStatus
+    }
+    
+    // Update selected job if it's the same one
+    if (selectedJob.value && selectedJob.value.id === jobId) {
+      selectedJob.value.status = newStatus
+    }
+    
+    console.log('Job status updated successfully')
+  } catch (err) {
+    console.error('Error updating job status:', err)
+    alert('Failed to update job status')
+  }
+}
+
 // Load jobs on component mount
 onMounted(() => {
   loadJobs()
@@ -253,12 +285,32 @@ onMounted(() => {
                 <p class="text-sm text-gray-600 text-left">{{ job.employer }}</p>
               </div>
               <div class="ml-4">
-                <span 
-                  class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                  :class="getStatusClass(job.status)"
-                >
-                  {{ getStatusText(job.status) }}
-                </span>
+                <div class="flex items-center space-x-2">
+                  <span 
+                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                    :class="getStatusClass(job.status)"
+                  >
+                    {{ getStatusText(job.status) }}
+                  </span>
+                  <select 
+                    @change="updateJobStatus(job.id, $event.target.value)"
+                    :value="job.status"
+                    @click.stop
+                    class="px-1 py-0.5 text-xs border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                  >
+                    <option value="new">New</option>
+                    <option value="applied">Applied</option>
+                    <option value="user_rejected">Rejected</option>
+                    <option value="filter_rejected">Filtered</option>
+                    <option value="interview_scheduled">Interview</option>
+                    <option value="interview_completed">Completed</option>
+                    <option value="offer_received">Offer</option>
+                    <option value="offer_accepted">Accepted</option>
+                    <option value="offer_rejected">Rejected</option>
+                    <option value="not_answered">No Reply</option>
+                    <option value="employer_rejected">Rejected</option>
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -317,12 +369,32 @@ onMounted(() => {
                   <h3 class="text-lg font-semibold text-gray-900 line-clamp-2 text-left">
                     {{ job.job_title }}
                   </h3>
-                  <span 
-                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ml-4 flex-shrink-0"
-                    :class="getStatusClass(job.status)"
-                  >
-                    {{ getStatusText(job.status) }}
-                  </span>
+                  <div class="flex items-center space-x-2 ml-4 flex-shrink-0">
+                    <span 
+                      class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                      :class="getStatusClass(job.status)"
+                    >
+                      {{ getStatusText(job.status) }}
+                    </span>
+                    <select 
+                      @change="updateJobStatus(job.id, $event.target.value)"
+                      :value="job.status"
+                      @click.stop
+                      class="px-1 py-0.5 text-xs border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                    >
+                      <option value="new">New</option>
+                      <option value="applied">Applied</option>
+                      <option value="user_rejected">Rejected</option>
+                      <option value="filter_rejected">Filtered</option>
+                      <option value="interview_scheduled">Interview</option>
+                      <option value="interview_completed">Completed</option>
+                      <option value="offer_received">Offer</option>
+                      <option value="offer_accepted">Accepted</option>
+                      <option value="offer_rejected">Rejected</option>
+                      <option value="not_answered">No Reply</option>
+                      <option value="employer_rejected">Rejected</option>
+                    </select>
+                  </div>
                 </div>
                 
                 <p class="text-sm text-gray-600 mb-2 text-left">{{ job.employer }}</p>
@@ -429,12 +501,31 @@ onMounted(() => {
                   </div>
                   <div class="text-left">
                     <span class="text-sm font-medium text-gray-500 text-left">Status:</span>
-                    <span 
-                      class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                      :class="getStatusClass(selectedJob.status)"
-                    >
-                      {{ getStatusText(selectedJob.status) }}
-                    </span>
+                    <div class="flex items-center space-x-2 mt-1">
+                      <span 
+                        class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                        :class="getStatusClass(selectedJob.status)"
+                      >
+                        {{ getStatusText(selectedJob.status) }}
+                      </span>
+                      <select 
+                        @change="updateJobStatus(selectedJob.id, $event.target.value)"
+                        :value="selectedJob.status"
+                        class="ml-2 px-2 py-1 text-xs border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="new">New</option>
+                        <option value="applied">Applied</option>
+                        <option value="user_rejected">Rejected</option>
+                        <option value="filter_rejected">Filtered</option>
+                        <option value="interview_scheduled">Interview Scheduled</option>
+                        <option value="interview_completed">Interview Completed</option>
+                        <option value="offer_received">Offer Received</option>
+                        <option value="offer_accepted">Offer Accepted</option>
+                        <option value="offer_rejected">Offer Rejected</option>
+                        <option value="not_answered">No Reply</option>
+                        <option value="employer_rejected">Employer Rejected</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
               </div>
