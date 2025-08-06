@@ -6,3 +6,6 @@ __pycache__/
 
 # ignore crawler results
 *.jsonl
+
+# ignore macOS files
+.DS_Store
