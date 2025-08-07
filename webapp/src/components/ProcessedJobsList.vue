@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 
 // Reactive data
 const jobs = ref([])
@@ -8,9 +8,79 @@ const showModal = ref(false)
 const loading = ref(false)
 const error = ref('')
 const viewMode = ref('grid') // 'grid' or 'list'
+const sortBy = ref('default') // 'default', 'status', 'seniority', 'title', 'employer'
 
 // API base URL
 const API_BASE_URL = 'http://localhost:3000/api'
+
+// Computed property for sorted jobs
+const sortedJobs = computed(() => {
+  if (sortBy.value === 'default') {
+    return jobs.value
+  }
+  
+  const sorted = [...jobs.value]
+  
+  switch (sortBy.value) {
+    case 'status':
+      // Sort by status: new first, rejected last, others in middle
+      const statusOrder = {
+        'new': 1,
+        'applied': 2,
+        'interview_scheduled': 3,
+        'interview_completed': 4,
+        'offer_received': 5,
+        'offer_accepted': 6,
+        'not_answered': 7,
+        'filter_rejected': 8,
+        'user_rejected': 9,
+        'employer_rejected': 10,
+        'offer_rejected': 11
+      }
+      return sorted.sort((a, b) => {
+        const aOrder = statusOrder[a.status] || 999
+        const bOrder = statusOrder[b.status] || 999
+        return aOrder - bOrder
+      })
+      
+    case 'seniority':
+      // Sort by seniority level
+      const seniorityOrder = {
+        'internship': 1,
+        'entry level': 2,
+        'associate': 3,
+        'mid-senior level': 4,
+        'director': 5,
+        'executive': 6
+      }
+      return sorted.sort((a, b) => {
+        const aLevel = (a.seniority_level || '').toLowerCase()
+        const bLevel = (b.seniority_level || '').toLowerCase()
+        const aOrder = seniorityOrder[aLevel] || 999
+        const bOrder = seniorityOrder[bLevel] || 999
+        return aOrder - bOrder
+      })
+      
+    case 'title':
+      // Sort by job title alphabetically
+      return sorted.sort((a, b) => {
+        const aTitle = (a.job_title || '').toLowerCase()
+        const bTitle = (b.job_title || '').toLowerCase()
+        return aTitle.localeCompare(bTitle)
+      })
+      
+    case 'employer':
+      // Sort by employer name alphabetically
+      return sorted.sort((a, b) => {
+        const aEmployer = (a.employer || '').toLowerCase()
+        const bEmployer = (b.employer || '').toLowerCase()
+        return aEmployer.localeCompare(bEmployer)
+      })
+      
+    default:
+      return sorted
+  }
+})
 
 // Methods
 const loadJobs = async () => {
@@ -337,8 +407,25 @@ onMounted(() => {
 
       <!-- View Toggle and Jobs -->
       <div v-else>
-        <!-- View Toggle -->
-        <div class="flex justify-end mb-6">
+        <!-- View Toggle and Sorting -->
+        <div class="flex justify-between items-center mb-6">
+          <!-- Sorting Dropdown -->
+          <div class="flex items-center space-x-2">
+            <label for="sort-select" class="text-sm font-medium text-gray-700">Sort by:</label>
+            <select
+              id="sort-select"
+              v-model="sortBy"
+              class="px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-sm"
+            >
+              <option value="default">Default (No sorting)</option>
+              <option value="status">By Status (New first, Rejected last)</option>
+              <option value="seniority">By Seniority Level</option>
+              <option value="title">By Job Title</option>
+              <option value="employer">By Employer Name</option>
+            </select>
+          </div>
+
+          <!-- View Toggle -->
           <div class="flex items-center bg-white rounded-lg shadow-sm border border-gray-200 p-1">
             <button
               @click="toggleViewMode"
@@ -350,7 +437,7 @@ onMounted(() => {
               ]"
             >
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2-2v-2z"></path>
               </svg>
             </button>
             <button
@@ -372,7 +459,7 @@ onMounted(() => {
         <!-- Jobs Grid View -->
         <div v-if="viewMode === 'grid'" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <div
-            v-for="job in jobs"
+            v-for="job in sortedJobs"
             :key="job.id"
             class="job-tile bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all duration-200 cursor-pointer"
             @click="openJobModal(job.id)"
@@ -458,7 +545,7 @@ onMounted(() => {
         <!-- Jobs List View -->
         <div v-else class="space-y-4">
           <div
-            v-for="job in jobs"
+            v-for="job in sortedJobs"
             :key="job.id"
             class="job-tile bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all duration-200 cursor-pointer"
             @click="openJobModal(job.id)"
