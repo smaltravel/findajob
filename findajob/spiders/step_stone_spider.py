@@ -46,9 +46,7 @@ class StepstoneSpider(scrapy.Spider):
         if self.__projessed_jobs > 10:
             return
         self.log("Processing url: " + response.url)
-        date_text_raw = response.css(
-            'li.at-listing__list-icons_date span.job-ad-display-du9bhi span::text'
-        ).get()
+        date_text_raw = response.css('li[data-at="metadata-online-date"] span[data-genesis-element="TEXT"] span::text').get()
         date_text = date_text_raw.strip() if date_text_raw else ""
 
         role = response.css('h1[data-at="header-job-title"]::text').get()
