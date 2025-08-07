@@ -68,6 +68,11 @@ class LinkedInSpider(scrapy.Spider):
                 # Yield a request to process the job card with the ID
                 yield scrapy.Request(f'{self.base_job_url}{job_id}', callback=self.parse_job)
 
+        if self.__jobs_processed >= self.max_jobs:
+            self.log(
+                f"Reached max_jobs limit ({self.max_jobs}). Stopping spider.")
+            return
+
         # Increment the start parameter to get the next page of results
         self.__params['start'] += self.__jobs_processed
         yield scrapy.Request(f'{self.base_search_url}?{urlencode(self.__params)}', callback=self.parse_search)
