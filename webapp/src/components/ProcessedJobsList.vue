@@ -10,16 +10,70 @@ const error = ref('')
 const viewMode = ref('grid') // 'grid' or 'list'
 const sortBy = ref('default') // 'default', 'status', 'seniority', 'title', 'employer'
 
+// Filter state
+const filters = ref({
+  status: '',
+  seniority: '',
+  employer: '',
+  title: ''
+})
+const showFilters = ref(false)
+
 // API base URL
 const API_BASE_URL = 'http://localhost:3000/api'
 
-// Computed property for sorted jobs
+// Computed properties for unique filter options
+const uniqueStatuses = computed(() => {
+  const statuses = [...new Set(jobs.value.map(job => job.status).filter(Boolean))]
+  return statuses.sort()
+})
+
+const uniqueSeniorities = computed(() => {
+  const seniorities = [...new Set(jobs.value.map(job => job.seniority_level).filter(Boolean))]
+  return seniorities.sort()
+})
+
+const uniqueEmployers = computed(() => {
+  const employers = [...new Set(jobs.value.map(job => job.employer).filter(Boolean))]
+  return employers.sort()
+})
+
+// Computed property for filtered jobs
+const filteredJobs = computed(() => {
+  return jobs.value.filter(job => {
+    // Status filter
+    if (filters.value.status && job.status !== filters.value.status) {
+      return false
+    }
+    
+    // Seniority filter
+    if (filters.value.seniority && job.seniority_level !== filters.value.seniority) {
+      return false
+    }
+    
+    // Employer filter (case-insensitive partial match)
+    if (filters.value.employer && !job.employer?.toLowerCase().includes(filters.value.employer.toLowerCase())) {
+      return false
+    }
+    
+    // Title filter (case-insensitive partial match)
+    if (filters.value.title && !job.job_title?.toLowerCase().includes(filters.value.title.toLowerCase())) {
+      return false
+    }
+    
+    return true
+  })
+})
+
+// Computed property for sorted jobs (now based on filtered jobs)
 const sortedJobs = computed(() => {
+  const jobsToSort = filteredJobs.value
+  
   if (sortBy.value === 'default') {
-    return jobs.value
+    return jobsToSort
   }
   
-  const sorted = [...jobs.value]
+  const sorted = [...jobsToSort]
   
   switch (sortBy.value) {
     case 'status':
@@ -80,6 +134,24 @@ const sortedJobs = computed(() => {
     default:
       return sorted
   }
+})
+
+// Filter methods
+const clearFilters = () => {
+  filters.value = {
+    status: '',
+    seniority: '',
+    employer: '',
+    title: ''
+  }
+}
+
+const hasActiveFilters = computed(() => {
+  return Object.values(filters.value).some(value => value !== '')
+})
+
+const getFilteredCount = computed(() => {
+  return filteredJobs.value.length
 })
 
 // Methods
@@ -407,22 +479,27 @@ onMounted(() => {
 
       <!-- View Toggle and Jobs -->
       <div v-else>
-        <!-- View Toggle and Sorting -->
-        <div class="flex justify-between items-center mb-6">
-          <!-- Sorting Dropdown -->
-          <div class="flex items-center space-x-2">
-            <label for="sort-select" class="text-sm font-medium text-gray-700">Sort by:</label>
-            <select
-              id="sort-select"
-              v-model="sortBy"
-              class="px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-sm"
+              <!-- Filters and Controls -->
+      <div class="mb-6 space-y-4">
+        <!-- Filter Toggle and Results Count -->
+        <div class="flex justify-between items-center">
+          <div class="flex items-center space-x-4">
+            <button
+              @click="showFilters = !showFilters"
+              class="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
-              <option value="default">Default (No sorting)</option>
-              <option value="status">By Status (New first, Rejected last)</option>
-              <option value="seniority">By Seniority Level</option>
-              <option value="title">By Job Title</option>
-              <option value="employer">By Employer Name</option>
-            </select>
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.207A1 1 0 013 6.5V4z"></path>
+              </svg>
+              <span>Filters</span>
+              <span v-if="hasActiveFilters" class="inline-flex items-center justify-center w-5 h-5 text-xs font-medium text-white bg-blue-600 rounded-full">
+                {{ Object.values(filters).filter(v => v !== '').length }}
+              </span>
+            </button>
+            
+            <div class="text-sm text-gray-600">
+              Showing {{ getFilteredCount }} of {{ jobs.length }} jobs
+            </div>
           </div>
 
           <!-- View Toggle -->
@@ -455,6 +532,92 @@ onMounted(() => {
             </button>
           </div>
         </div>
+
+        <!-- Filter Panel -->
+        <div v-if="showFilters" class="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Status Filter -->
+            <div>
+              <label for="status-filter" class="block text-sm font-medium text-gray-700 mb-2">Status</label>
+              <select
+                id="status-filter"
+                v-model="filters.status"
+                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+              >
+                <option value="">All Statuses</option>
+                <option v-for="status in uniqueStatuses" :key="status" :value="status">
+                  {{ getStatusText(status) }}
+                </option>
+              </select>
+            </div>
+
+            <!-- Seniority Filter -->
+            <div>
+              <label for="seniority-filter" class="block text-sm font-medium text-gray-700 mb-2">Seniority Level</label>
+              <select
+                id="seniority-filter"
+                v-model="filters.seniority"
+                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+              >
+                <option value="">All Levels</option>
+                <option v-for="seniority in uniqueSeniorities" :key="seniority" :value="seniority">
+                  {{ seniority }}
+                </option>
+              </select>
+            </div>
+
+            <!-- Employer Filter -->
+            <div>
+              <label for="employer-filter" class="block text-sm font-medium text-gray-700 mb-2">Employer</label>
+              <input
+                id="employer-filter"
+                v-model="filters.employer"
+                type="text"
+                placeholder="Search employers..."
+                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+              />
+            </div>
+
+            <!-- Job Title Filter -->
+            <div>
+              <label for="title-filter" class="block text-sm font-medium text-gray-700 mb-2">Job Title</label>
+              <input
+                id="title-filter"
+                v-model="filters.title"
+                type="text"
+                placeholder="Search job titles..."
+                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+              />
+            </div>
+          </div>
+
+          <!-- Filter Actions -->
+          <div class="flex justify-end mt-4 pt-4 border-t border-gray-200">
+            <button
+              @click="clearFilters"
+              class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
+            >
+              Clear All Filters
+            </button>
+          </div>
+        </div>
+
+        <!-- Sorting -->
+        <div class="flex items-center space-x-2">
+          <label for="sort-select" class="text-sm font-medium text-gray-700">Sort by:</label>
+          <select
+            id="sort-select"
+            v-model="sortBy"
+            class="px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-sm"
+          >
+            <option value="default">Default (No sorting)</option>
+            <option value="status">By Status (New first, Rejected last)</option>
+            <option value="seniority">By Seniority Level</option>
+            <option value="title">By Job Title</option>
+            <option value="employer">By Employer Name</option>
+          </select>
+        </div>
+      </div>
 
         <!-- Jobs Grid View -->
         <div v-if="viewMode === 'grid'" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
