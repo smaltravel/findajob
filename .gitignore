@@ -13,3 +13,6 @@ __pycache__/
 # Ignore db artifacts
 **/*.db
 **/*.db-journal
+
+# Ignore macos files
+.DS_Store
