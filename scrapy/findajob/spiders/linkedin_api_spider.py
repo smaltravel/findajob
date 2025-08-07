@@ -14,20 +14,21 @@ class LinkedInSpider(scrapy.Spider):
     base_search_url = 'https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search'
     base_job_url = 'https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/'
 
-    def __init__(self, keywords: str, location: str, runid: str, max_jobs: int = 20, *args, **kwargs):
+    def __init__(self, keywords: str, location: str, runid: str, max_jobs: int = 20, seniority: int = 3, *args, **kwargs):
         super(LinkedInSpider).__init__(*args, **kwargs)
         # Store runid for database storage
         self.runid = runid
         # Store max_jobs limit
         self.max_jobs = int(max_jobs) if max_jobs else 20
-        # Counter for successfully processed jobs
-        self.__jobs_processed = 0
+        # Counter for jobs found in search results
+        self.__jobs_found = 0
         # For more info visit: https://gist.github.com/Diegiwg/51c22fa7ec9d92ed9b5d1f537b9e1107
         self.__params = {
             'keywords': keywords,
             'location': location,
             # 'f_PP': '106772406', # Filter for jobs in a specific City. Accepts the $ID of the city
             'f_TPR': 'r86400',  # Filter for the time since the job was posted.
+            'f_E': seniority,  # Seniority level: Intern - 1, Assistant - 2, Junior - 3, Mid-Senior - 4, Director - 5, and Executive - 6
             'start': 0,
         }
 
@@ -51,10 +52,14 @@ class LinkedInSpider(scrapy.Spider):
         """
         self.log("Parsing search results page...")
 
-        # Walk whrought all job posting's data-entity-urn to get the jobPosting
+        if response.xpath('//html/body').get() is None:
+            self.log("Reached the end of the search results")
+            return
+
+        # Walk through all job posting's data-entity-urn to get the jobPosting
         for job_badge in response.xpath('//html/body/li'):
             # Check if we've reached the max_jobs limit
-            if self.__jobs_processed >= self.max_jobs:
+            if self.__jobs_found >= self.max_jobs:
                 self.log(
                     f"Reached max_jobs limit ({self.max_jobs}). Stopping spider.")
                 return
@@ -65,29 +70,28 @@ class LinkedInSpider(scrapy.Spider):
                 job_id = job_urn.split(':')[-1]
                 self.log(f"Found job ID: {job_id}")
 
+                # Increment jobs found counter
+                self.__jobs_found += 1
+
                 # Yield a request to process the job card with the ID
                 yield scrapy.Request(f'{self.base_job_url}{job_id}', callback=self.parse_job)
 
-        if self.__jobs_processed >= self.max_jobs:
+        # Check if we need to continue pagination
+        if self.__jobs_found < self.max_jobs:
+            # Increment the start parameter to get the next page of results
+            self.__params['start'] = self.__jobs_found
             self.log(
-                f"Reached max_jobs limit ({self.max_jobs}). Stopping spider.")
-            return
-
-        # Increment the start parameter to get the next page of results
-        self.__params['start'] += self.__jobs_processed
-        yield scrapy.Request(f'{self.base_search_url}?{urlencode(self.__params)}', callback=self.parse_search)
+                f'Continuing with the next page of results: {self.__params["start"]}')
+            yield scrapy.Request(f'{self.base_search_url}?{urlencode(self.__params)}', callback=self.parse_search)
+        else:
+            self.log(
+                f"Reached max_jobs limit ({self.max_jobs}). Stopping pagination.")
 
     def parse_job(self, response):
         """
         Parses a single detailed job page to extract all specified data.
         This function is called for each job URL found on the search results page.
         """
-        # Check if we've reached the max_jobs limit
-        if self.__jobs_processed >= self.max_jobs:
-            self.log(
-                f"Reached max_jobs limit ({self.max_jobs}). Stopping spider.")
-            return
-
         self.log(f"Processing detailed job page: {response.url}")
 
         path_parsers = {
@@ -99,11 +103,6 @@ class LinkedInSpider(scrapy.Spider):
 
         for path, handler in path_parsers.items():
             data = data | handler(response.xpath(path))
-
-        # Increment the counter for successfully processed jobs
-        self.__jobs_processed += 1
-        self.log(
-            f"Successfully processed job {self.__jobs_processed}/{self.max_jobs}: {data.get('job_title', 'Unknown')}")
 
         # Yield the extracted data as a dictionary
         yield data
