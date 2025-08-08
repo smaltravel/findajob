@@ -2,6 +2,8 @@
 import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
 import FilterBar from './filters/FilterBar.vue'
 import JobDetailsModal from './jobs/JobDetailsModal.vue'
+import JobCard from './jobs/JobCard.vue'
+import JobRow from './jobs/JobRow.vue'
 
 // Reactive data
 const jobs = ref([])
@@ -238,12 +240,27 @@ const getFilteredCount = computed(() => {
 })
 
 // Methods
+// Pagination state
+const page = ref(1)
+const pageSize = ref(30)
+const total = ref(0)
+
+const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
+
 const loadJobs = async () => {
   try {
     loading.value = true
     error.value = ''
     
-    const response = await fetch(`${API_BASE_URL}/processed-jobs`)
+    const params = new URLSearchParams()
+    params.set('page', String(page.value))
+    params.set('pageSize', String(pageSize.value))
+    if (filters.value.status) params.set('status', filters.value.status)
+    if (filters.value.seniority) params.set('seniority', filters.value.seniority)
+    if (filters.value.employer) params.set('employer', filters.value.employer)
+    if (filters.value.title) params.set('title', filters.value.title)
+    if (sortBy.value && sortBy.value !== 'default') params.set('sortBy', sortBy.value)
+    const response = await fetch(`${API_BASE_URL}/processed-jobs?${params.toString()}`)
     if (!response.ok) {
       throw new Error('Failed to load jobs')
     }
@@ -255,6 +272,7 @@ const loadJobs = async () => {
       job_summary_parsed: parseJobSummary(job.job_summary),
       cover_letter_parsed: parseCoverLetter(job.cover_letter)
     }))
+    total.value = Number(data.total || 0)
     
   } catch (err) {
     console.error('Error loading jobs:', err)
@@ -648,212 +666,48 @@ onUnmounted(() => {
 
         <!-- Jobs Grid View -->
         <div v-if="viewMode === 'grid'" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <div
+          <JobCard
             v-for="(job, index) in sortedJobs"
             :key="job.id"
+            :job="job"
+            :focused="index === focusedIndex"
+            :is-starred="isStarred(job.id)"
             :ref="el => jobRefs[index] = el"
-            :class="[
-              'job-tile bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all duration-200 cursor-pointer',
-              index === focusedIndex ? 'ring-2 ring-blue-400' : ''
-            ]"
-            @click="openJobModal(job.id)"
-          >
-            <!-- Job Header -->
-            <div class="flex items-start justify-between mb-4">
-              <div class="flex-1">
-                <h3 class="text-lg font-semibold text-gray-900 mb-1 line-clamp-2 text-left">
-                  {{ job.job_title }}
-                </h3>
-                <p class="text-sm text-gray-600 text-left">{{ job.employer }}</p>
-              </div>
-              <div class="ml-4">
-                <div class="flex items-center space-x-2">
-                  <button
-                    @click.stop="toggleStar(job.id)"
-                    :aria-pressed="isStarred(job.id)"
-                    :title="isStarred(job.id) ? 'Unstar' : 'Star'"
-                    class="p-1 rounded hover:bg-gray-100"
-                  >
-                    <svg :class="['w-4 h-4', isStarred(job.id) ? 'text-yellow-500' : 'text-gray-400']" viewBox="0 0 20 20" fill="currentColor">
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.803 2.036a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.803-2.036a1 1 0 00-1.176 0l-2.803 2.036c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                    </svg>
-                  </button>
-                  <span 
-                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                    :class="getStatusClass(job.status)"
-                  >
-                    {{ getStatusText(job.status) }}
-                  </span>
-                  <select 
-                    @change="updateJobStatus(job.id, $event.target.value)"
-                    :value="job.status"
-                    @click.stop
-                    class="px-1 py-0.5 text-xs border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
-                  >
-                    <option value="new">New</option>
-                    <option value="applied">Applied</option>
-                    <option value="user_rejected">Rejected</option>
-                    <option value="filter_rejected">Filtered</option>
-                    <option value="interview_scheduled">Interview</option>
-                    <option value="interview_completed">Completed</option>
-                    <option value="offer_received">Offer</option>
-                    <option value="offer_accepted">Accepted</option>
-                    <option value="offer_rejected">Rejected</option>
-                    <option value="not_answered">No Reply</option>
-                    <option value="employer_rejected">Rejected</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            <!-- Job Summary -->
-            <div class="mb-4">
-              <p class="text-sm text-gray-700 line-clamp-3 text-left">
-                {{ truncateText(getJobSummaryText(job)) }}
-              </p>
-            </div>
-
-            <!-- Quick Actions -->
-            <div class="flex items-center space-x-3 mb-3">
-              <button @click.stop="openExternal(job)" class="text-xs text-blue-600 hover:text-blue-700">Open</button>
-              <button @click.stop="copyCoverLetter(job)" class="text-xs text-gray-600 hover:text-gray-800">Copy CL</button>
-              <button @click.stop="markApplied(job.id)" class="text-xs text-green-600 hover:text-green-700">Applied</button>
-              <button @click.stop="markRejected(job.id)" class="text-xs text-red-600 hover:text-red-700">Reject</button>
-            </div>
-
-            <!-- Job Details -->
-            <div class="space-y-2 mb-4">
-              <div v-if="job.job_location" class="flex items-center text-sm text-gray-500">
-                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                </svg>
-                <span class="text-left">{{ job.job_location }}</span>
-              </div>
-              
-              <div v-if="job.employment_type" class="flex items-center text-sm text-gray-500">
-                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2-2v2m8 0V6a2 2 0 012 2v6a2 2 0 01-2 2H8a2 2 0 01-2-2V8a2 2 0 012-2V6"></path>
-                </svg>
-                <span class="text-left">{{ job.employment_type }}</span>
-              </div>
-
-              <div v-if="job.seniority_level" class="flex items-center text-sm text-gray-500">
-                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
-                <span class="text-left">{{ job.seniority_level }}</span>
-              </div>
-            </div>
-
-            <!-- Footer -->
-            <div class="flex items-center justify-between text-xs text-gray-400">
-              <span class="text-left">Processed: {{ formatDate(job.created_at) }}</span>
-              <span class="text-blue-600 hover:text-blue-700">View Details →</span>
-            </div>
-          </div>
+            @open="openJobModal"
+            @toggleStar="toggleStar"
+            @updateStatus="(status) => updateJobStatus(job.id, status)"
+            @openExternal="openExternal"
+            @copyCL="copyCoverLetter"
+            @applied="markApplied"
+            @rejected="markRejected"
+          />
         </div>
 
         <!-- Jobs List View -->
         <div v-else class="space-y-4">
-          <div
+          <JobRow
             v-for="(job, index) in sortedJobs"
             :key="job.id"
+            :job="job"
+            :focused="index === focusedIndex"
+            :is-starred="isStarred(job.id)"
             :ref="el => jobRefs[index] = el"
-            :class="[
-              'job-tile bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all duration-200 cursor-pointer',
-              index === focusedIndex ? 'ring-2 ring-blue-400' : ''
-            ]"
-            @click="openJobModal(job.id)"
-          >
-            <div class="flex items-start space-x-4">
-              <!-- Job Info -->
-              <div class="flex-1 min-w-0">
-                <div class="flex items-start justify-between mb-2">
-                  <h3 class="text-lg font-semibold text-gray-900 line-clamp-2 text-left">
-                    {{ job.job_title }}
-                  </h3>
-                  <div class="flex items-center space-x-2 ml-4 flex-shrink-0">
-                    <button
-                      @click.stop="toggleStar(job.id)"
-                      :aria-pressed="isStarred(job.id)"
-                      :title="isStarred(job.id) ? 'Unstar' : 'Star'"
-                      class="p-1 rounded hover:bg-gray-100"
-                    >
-                      <svg :class="['w-4 h-4', isStarred(job.id) ? 'text-yellow-500' : 'text-gray-400']" viewBox="0 0 20 20" fill="currentColor">
-                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.803 2.036a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.803-2.036a1 1 0 00-1.176 0l-2.803 2.036c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                      </svg>
-                    </button>
-                    <span 
-                      class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                      :class="getStatusClass(job.status)"
-                    >
-                      {{ getStatusText(job.status) }}
-                    </span>
-                    <select 
-                      @change="updateJobStatus(job.id, $event.target.value)"
-                      :value="job.status"
-                      @click.stop
-                      class="px-1 py-0.5 text-xs border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
-                    >
-                      <option value="new">New</option>
-                      <option value="applied">Applied</option>
-                      <option value="user_rejected">Rejected</option>
-                      <option value="filter_rejected">Filtered</option>
-                      <option value="interview_scheduled">Interview</option>
-                      <option value="interview_completed">Completed</option>
-                      <option value="offer_received">Offer</option>
-                      <option value="offer_accepted">Accepted</option>
-                      <option value="offer_rejected">Rejected</option>
-                      <option value="not_answered">No Reply</option>
-                      <option value="employer_rejected">Rejected</option>
-                    </select>
-                  </div>
-                </div>
-                
-                <p class="text-sm text-gray-600 mb-2 text-left">{{ job.employer }}</p>
-                
-                <div class="flex items-center space-x-4 text-sm text-gray-500 mb-3">
-                  <div v-if="job.job_location" class="flex items-center">
-                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                    </svg>
-                    <span class="text-left">{{ job.job_location }}</span>
-                  </div>
-                  
-                  <div v-if="job.employment_type" class="flex items-center">
-                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2-2v2m8 0V6a2 2 0 012 2v6a2 2 0 01-2 2H8a2 2 0 01-2-2V8a2 2 0 012-2V6"></path>
-                    </svg>
-                    <span class="text-left">{{ job.employment_type }}</span>
-                  </div>
-                  
-                  <div v-if="job.seniority_level" class="flex items-center">
-                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
-                    <span class="text-left">{{ job.seniority_level }}</span>
-                  </div>
-                </div>
-                
-                <p class="text-sm text-gray-700 line-clamp-2 text-left">
-                  {{ truncateText(getJobSummaryText(job), 200) }}
-                </p>
-                <div class="flex items-center space-x-3 mt-2">
-                  <button @click.stop="openExternal(job)" class="text-xs text-blue-600 hover:text-blue-700">Open</button>
-                  <button @click.stop="copyCoverLetter(job)" class="text-xs text-gray-600 hover:text-gray-800">Copy CL</button>
-                  <button @click.stop="markApplied(job.id)" class="text-xs text-green-600 hover:text-green-700">Applied</button>
-                  <button @click.stop="markRejected(job.id)" class="text-xs text-red-600 hover:text-red-700">Reject</button>
-                </div>
-              </div>
-              
-              <!-- Right side info -->
-              <div class="flex flex-col items-end space-y-2 text-xs text-gray-400">
-                <span class="text-left">Processed: {{ formatDate(job.created_at) }}</span>
-                <span class="text-blue-600 hover:text-blue-700">View Details →</span>
-              </div>
-            </div>
+            @open="openJobModal"
+            @toggleStar="toggleStar"
+            @updateStatus="(status) => updateJobStatus(job.id, status)"
+            @openExternal="openExternal"
+            @copyCL="copyCoverLetter"
+            @applied="markApplied"
+            @rejected="markRejected"
+          />
+        </div>
+
+        <!-- Pagination -->
+        <div class="mt-6 flex items-center justify-between">
+          <div class="text-sm text-gray-600">Page {{ page }} of {{ totalPages }} ({{ total }} total)</div>
+          <div class="space-x-2">
+            <button :disabled="page <= 1" @click="page = Math.max(1, page - 1); loadJobs();" class="px-3 py-1.5 border rounded disabled:opacity-50">Prev</button>
+            <button :disabled="page >= totalPages" @click="page = Math.min(totalPages, page + 1); loadJobs();" class="px-3 py-1.5 border rounded disabled:opacity-50">Next</button>
           </div>
         </div>
       </div>

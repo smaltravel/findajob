@@ -161,7 +161,90 @@ process.on('SIGINT', () => {
 // API Routes
 app.get('/api/processed-jobs', async (req, res) => {
     try {
-        const query = `
+        const {
+            page = '1',
+            pageSize = '30',
+            status = '',
+            seniority = '',
+            employer = '',
+            title = '',
+            sortBy = 'created',
+            order = 'desc',
+        } = req.query;
+
+        const pageNum = Math.max(1, parseInt(page, 10) || 1);
+        const sizeNum = Math.min(100, Math.max(1, parseInt(pageSize, 10) || 30));
+        const offset = (pageNum - 1) * sizeNum;
+
+        const whereClauses = ["pj.processing_status = 'completed'"];
+        const params = [];
+
+        if (status) {
+            whereClauses.push('j.status = ?');
+            params.push(status);
+        }
+        if (seniority) {
+            whereClauses.push('LOWER(j.seniority_level) = LOWER(?)');
+            params.push(seniority);
+        }
+        if (employer) {
+            whereClauses.push('LOWER(j.employer) LIKE LOWER(?)');
+            params.push(`%${employer}%`);
+        }
+        if (title) {
+            whereClauses.push('LOWER(j.job_title) LIKE LOWER(?)');
+            params.push(`%${title}%`);
+        }
+
+        const whereSql = whereClauses.length ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
+        // Sorting mapping
+        let orderBySql = 'ORDER BY pj.created_at DESC';
+        const direction = (String(order).toLowerCase() === 'asc') ? 'ASC' : 'DESC';
+        if (sortBy === 'status') {
+            orderBySql = `ORDER BY CASE j.status
+                WHEN 'new' THEN 1
+                WHEN 'applied' THEN 2
+                WHEN 'interview_scheduled' THEN 3
+                WHEN 'interview_completed' THEN 4
+                WHEN 'offer_received' THEN 5
+                WHEN 'offer_accepted' THEN 6
+                WHEN 'not_answered' THEN 7
+                WHEN 'filter_rejected' THEN 8
+                WHEN 'user_rejected' THEN 9
+                WHEN 'employer_rejected' THEN 10
+                WHEN 'offer_rejected' THEN 11
+                ELSE 999
+            END ${direction}`;
+        } else if (sortBy === 'seniority') {
+            orderBySql = `ORDER BY CASE LOWER(COALESCE(j.seniority_level,''))
+                WHEN 'internship' THEN 1
+                WHEN 'entry level' THEN 2
+                WHEN 'associate' THEN 3
+                WHEN 'mid-senior level' THEN 4
+                WHEN 'director' THEN 5
+                WHEN 'executive' THEN 6
+                ELSE 999
+            END ${direction}`;
+        } else if (sortBy === 'title') {
+            orderBySql = `ORDER BY LOWER(COALESCE(j.job_title,'')) ${direction}`;
+        } else if (sortBy === 'employer') {
+            orderBySql = `ORDER BY LOWER(COALESCE(j.employer,'')) ${direction}`;
+        } else if (sortBy === 'created') {
+            orderBySql = `ORDER BY pj.created_at ${direction}`;
+        }
+
+        const baseSelect = `
+            FROM processed_jobs pj
+            JOIN jobs j ON pj.job_id = j.id
+            ${whereSql}
+        `;
+
+        const countQuery = `SELECT COUNT(*) as total ${baseSelect}`;
+        const countRow = await safeGet(countQuery, params);
+        const total = countRow?.total || 0;
+
+        const dataQuery = `
             SELECT 
                 pj.id,
                 pj.job_id,
@@ -182,14 +265,13 @@ app.get('/api/processed-jobs', async (req, res) => {
                 j.seniority_level,
                 j.industries,
                 j.status
-            FROM processed_jobs pj
-            JOIN jobs j ON pj.job_id = j.id
-            WHERE pj.processing_status = 'completed'
-            ORDER BY pj.created_at DESC
+            ${baseSelect}
+            ${orderBySql}
+            LIMIT ? OFFSET ?
         `;
-        
-        const rows = await safeQuery(query);
-        res.json({ jobs: rows });
+
+        const rows = await safeQuery(dataQuery, [...params, sizeNum, offset]);
+        res.json({ jobs: rows, total, page: pageNum, pageSize: sizeNum });
     } catch (err) {
         console.error('Database error:', err);
         res.status(500).json({ error: 'Database error' });
