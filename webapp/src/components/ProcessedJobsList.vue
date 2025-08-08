@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
 
 // Reactive data
 const jobs = ref([])
@@ -15,12 +15,86 @@ const filters = ref({
   status: '',
   seniority: '',
   employer: '',
-  title: ''
+  title: '',
+  starredOnly: false,
 })
 const showFilters = ref(false)
+const starredIds = ref(new Set())
 
-// API base URL
-const API_BASE_URL = 'http://localhost:3000/api'
+// Env-aware API base URL (uses dev proxy; same-origin in production)
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
+
+// Dev flag
+const isDev = import.meta.env.MODE !== 'production'
+
+// Keyboard navigation / focus management
+const focusedIndex = ref(-1)
+const jobRefs = ref([])
+
+// Persisted UI state keys
+const STORAGE_KEYS = {
+  filters: 'processedJobs.filters',
+  sortBy: 'processedJobs.sortBy',
+  viewMode: 'processedJobs.viewMode',
+  starred: 'processedJobs.starred',
+}
+
+const restoreStateFromStorage = () => {
+  try {
+    const savedFilters = localStorage.getItem(STORAGE_KEYS.filters)
+    if (savedFilters) {
+      const parsed = JSON.parse(savedFilters)
+      if (parsed && typeof parsed === 'object') {
+        filters.value = {
+          status: parsed.status || '',
+          seniority: parsed.seniority || '',
+          employer: parsed.employer || '',
+          title: parsed.title || '',
+          starredOnly: !!parsed.starredOnly,
+        }
+      }
+    }
+  } catch {}
+  const savedSort = localStorage.getItem(STORAGE_KEYS.sortBy)
+  if (savedSort) sortBy.value = savedSort
+  const savedView = localStorage.getItem(STORAGE_KEYS.viewMode)
+  if (savedView) viewMode.value = savedView
+  try {
+    const savedStarred = JSON.parse(localStorage.getItem(STORAGE_KEYS.starred) || '[]')
+    if (Array.isArray(savedStarred)) {
+      starredIds.value = new Set(savedStarred)
+    }
+  } catch {}
+}
+
+watch(filters, (val) => {
+  try { localStorage.setItem(STORAGE_KEYS.filters, JSON.stringify(val)) } catch {}
+}, { deep: true })
+
+watch(sortBy, (val) => {
+  try { localStorage.setItem(STORAGE_KEYS.sortBy, val) } catch {}
+})
+
+watch(viewMode, (val) => {
+  try { localStorage.setItem(STORAGE_KEYS.viewMode, val) } catch {}
+})
+
+const persistStarred = () => {
+  try { localStorage.setItem(STORAGE_KEYS.starred, JSON.stringify(Array.from(starredIds.value))) } catch {}
+}
+
+const toggleStar = (jobId) => {
+  if (starredIds.value.has(jobId)) {
+    starredIds.value.delete(jobId)
+  } else {
+    starredIds.value.add(jobId)
+  }
+  // force reactivity by replacing the Set
+  starredIds.value = new Set(starredIds.value)
+  persistStarred()
+}
+
+const isStarred = (jobId) => starredIds.value.has(jobId)
 
 // Computed properties for unique filter options
 const uniqueStatuses = computed(() => {
@@ -58,6 +132,10 @@ const filteredJobs = computed(() => {
     
     // Title filter (case-insensitive partial match)
     if (filters.value.title && !job.job_title?.toLowerCase().includes(filters.value.title.toLowerCase())) {
+      return false
+    }
+    // Starred only
+    if (filters.value.starredOnly && !isStarred(job.id)) {
       return false
     }
     
@@ -432,9 +510,79 @@ const updateJobStatus = async (jobId, newStatus) => {
   }
 }
 
-// Load jobs on component mount
+// Quick actions
+const openExternal = (job) => {
+  if (job?.job_url) {
+    window.open(job.job_url, '_blank', 'noopener')
+  }
+}
+
+const copyCoverLetter = async (job) => {
+  try {
+    const content = job?.cover_letter_parsed?.letter_content ?? job?.cover_letter
+    if (!content) {
+      alert('No cover letter available')
+      return
+    }
+    const text = typeof content === 'string' 
+      ? content.replace(/<[^>]*>/g, '')
+      : JSON.stringify(content, null, 2)
+    await navigator.clipboard.writeText(text)
+  } catch (e) {
+    console.error('Failed to copy cover letter', e)
+    alert('Failed to copy cover letter')
+  }
+}
+
+const markApplied = (jobId) => updateJobStatus(jobId, 'applied')
+const markRejected = (jobId) => updateJobStatus(jobId, 'user_rejected')
+
+// Keyboard shortcuts
+const moveFocus = (delta) => {
+  const total = sortedJobs.value.length
+  if (total === 0) return
+  if (focusedIndex.value < 0) focusedIndex.value = 0
+  else focusedIndex.value = Math.min(total - 1, Math.max(0, focusedIndex.value + delta))
+  nextTick(() => {
+    const el = jobRefs.value[focusedIndex.value]
+    if (el && el.scrollIntoView) el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  })
+}
+
+const handleKeyDown = (e) => {
+  const tag = e.target?.tagName
+  if (tag && ['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) return
+  if (e.key === 'j') { e.preventDefault(); moveFocus(1) }
+  if (e.key === 'k') { e.preventDefault(); moveFocus(-1) }
+  if (e.key === 'Enter' && focusedIndex.value >= 0) {
+    openJobModal(sortedJobs.value[focusedIndex.value].id)
+  }
+  if (e.key === 'Escape' && showModal.value) {
+    closeModal()
+  }
+  if (e.key.toLowerCase() === 'a' && focusedIndex.value >= 0) {
+    markApplied(sortedJobs.value[focusedIndex.value].id)
+  }
+  if (e.key.toLowerCase() === 'r' && focusedIndex.value >= 0) {
+    markRejected(sortedJobs.value[focusedIndex.value].id)
+  }
+  if (e.key.toLowerCase() === 'o' && focusedIndex.value >= 0) {
+    openExternal(sortedJobs.value[focusedIndex.value])
+  }
+  if (e.key.toLowerCase() === 'c' && focusedIndex.value >= 0) {
+    copyCoverLetter(sortedJobs.value[focusedIndex.value])
+  }
+}
+
+// Load jobs and set up listeners
 onMounted(() => {
+  restoreStateFromStorage()
   loadJobs()
+  window.addEventListener('keydown', handleKeyDown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeyDown)
 })
 </script>
 
@@ -589,6 +737,13 @@ onMounted(() => {
                 class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
               />
             </div>
+            <!-- Starred Filter -->
+            <div class="flex items-end">
+              <label class="inline-flex items-center space-x-2 text-sm text-gray-700">
+                <input type="checkbox" v-model="filters.starredOnly" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                <span>Starred only</span>
+              </label>
+            </div>
           </div>
 
           <!-- Filter Actions -->
@@ -622,9 +777,13 @@ onMounted(() => {
         <!-- Jobs Grid View -->
         <div v-if="viewMode === 'grid'" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <div
-            v-for="job in sortedJobs"
+            v-for="(job, index) in sortedJobs"
             :key="job.id"
-            class="job-tile bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all duration-200 cursor-pointer"
+            :ref="el => jobRefs[index] = el"
+            :class="[
+              'job-tile bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all duration-200 cursor-pointer',
+              index === focusedIndex ? 'ring-2 ring-blue-400' : ''
+            ]"
             @click="openJobModal(job.id)"
           >
             <!-- Job Header -->
@@ -637,6 +796,16 @@ onMounted(() => {
               </div>
               <div class="ml-4">
                 <div class="flex items-center space-x-2">
+                  <button
+                    @click.stop="toggleStar(job.id)"
+                    :aria-pressed="isStarred(job.id)"
+                    :title="isStarred(job.id) ? 'Unstar' : 'Star'"
+                    class="p-1 rounded hover:bg-gray-100"
+                  >
+                    <svg :class="['w-4 h-4', isStarred(job.id) ? 'text-yellow-500' : 'text-gray-400']" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.803 2.036a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.803-2.036a1 1 0 00-1.176 0l-2.803 2.036c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                  </button>
                   <span 
                     class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
                     :class="getStatusClass(job.status)"
@@ -670,6 +839,14 @@ onMounted(() => {
               <p class="text-sm text-gray-700 line-clamp-3 text-left">
                 {{ truncateText(getJobSummaryText(job)) }}
               </p>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="flex items-center space-x-3 mb-3">
+              <button @click.stop="openExternal(job)" class="text-xs text-blue-600 hover:text-blue-700">Open</button>
+              <button @click.stop="copyCoverLetter(job)" class="text-xs text-gray-600 hover:text-gray-800">Copy CL</button>
+              <button @click.stop="markApplied(job.id)" class="text-xs text-green-600 hover:text-green-700">Applied</button>
+              <button @click.stop="markRejected(job.id)" class="text-xs text-red-600 hover:text-red-700">Reject</button>
             </div>
 
             <!-- Job Details -->
@@ -708,9 +885,13 @@ onMounted(() => {
         <!-- Jobs List View -->
         <div v-else class="space-y-4">
           <div
-            v-for="job in sortedJobs"
+            v-for="(job, index) in sortedJobs"
             :key="job.id"
-            class="job-tile bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all duration-200 cursor-pointer"
+            :ref="el => jobRefs[index] = el"
+            :class="[
+              'job-tile bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all duration-200 cursor-pointer',
+              index === focusedIndex ? 'ring-2 ring-blue-400' : ''
+            ]"
             @click="openJobModal(job.id)"
           >
             <div class="flex items-start space-x-4">
@@ -721,6 +902,16 @@ onMounted(() => {
                     {{ job.job_title }}
                   </h3>
                   <div class="flex items-center space-x-2 ml-4 flex-shrink-0">
+                    <button
+                      @click.stop="toggleStar(job.id)"
+                      :aria-pressed="isStarred(job.id)"
+                      :title="isStarred(job.id) ? 'Unstar' : 'Star'"
+                      class="p-1 rounded hover:bg-gray-100"
+                    >
+                      <svg :class="['w-4 h-4', isStarred(job.id) ? 'text-yellow-500' : 'text-gray-400']" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.803 2.036a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.803-2.036a1 1 0 00-1.176 0l-2.803 2.036c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                      </svg>
+                    </button>
                     <span 
                       class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
                       :class="getStatusClass(job.status)"
@@ -777,6 +968,12 @@ onMounted(() => {
                 <p class="text-sm text-gray-700 line-clamp-2 text-left">
                   {{ truncateText(getJobSummaryText(job), 200) }}
                 </p>
+                <div class="flex items-center space-x-3 mt-2">
+                  <button @click.stop="openExternal(job)" class="text-xs text-blue-600 hover:text-blue-700">Open</button>
+                  <button @click.stop="copyCoverLetter(job)" class="text-xs text-gray-600 hover:text-gray-800">Copy CL</button>
+                  <button @click.stop="markApplied(job.id)" class="text-xs text-green-600 hover:text-green-700">Applied</button>
+                  <button @click.stop="markRejected(job.id)" class="text-xs text-red-600 hover:text-red-700">Reject</button>
+                </div>
               </div>
               
               <!-- Right side info -->
@@ -792,8 +989,8 @@ onMounted(() => {
       <!-- Job Details Modal -->
       <div v-if="showModal && selectedJob" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
         <div class="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-          <!-- Debug Info (remove in production) -->
-          <div class="bg-yellow-100 p-2 text-xs text-gray-600">
+          <!-- Debug Info (hidden in production) -->
+          <div v-if="isDev" class="bg-yellow-100 p-2 text-xs text-gray-600">
             Debug: Modal visible, selectedJob: {{ selectedJob ? 'Yes' : 'No' }}, 
             Job ID: {{ selectedJob?.id }}, 
             Title: {{ selectedJob?.job_title }}
@@ -814,6 +1011,13 @@ onMounted(() => {
 
           <!-- Modal Content -->
           <div class="p-6 space-y-6">
+            <!-- Modal Quick Actions -->
+            <div class="flex items-center gap-3">
+              <button @click="openExternal(selectedJob)" class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700">Open Posting</button>
+              <button @click="copyCoverLetter(selectedJob)" class="inline-flex items-center px-3 py-1.5 bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200">Copy Cover Letter</button>
+              <button @click="markApplied(selectedJob.id)" class="inline-flex items-center px-3 py-1.5 bg-green-600 text-white rounded-md hover:bg-green-700">Mark Applied</button>
+              <button @click="markRejected(selectedJob.id)" class="inline-flex items-center px-3 py-1.5 bg-red-600 text-white rounded-md hover:bg-red-700">Reject</button>
+            </div>
             <!-- Job Overview -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
