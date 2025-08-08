@@ -1,5 +1,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
+import FilterBar from './filters/FilterBar.vue'
+import JobDetailsModal from './jobs/JobDetailsModal.vue'
 
 // Reactive data
 const jobs = ref([])
@@ -18,7 +20,6 @@ const filters = ref({
   title: '',
   starredOnly: false,
 })
-const showFilters = ref(false)
 const starredIds = ref(new Set())
 
 // Env-aware API base URL (uses dev proxy; same-origin in production)
@@ -107,10 +108,7 @@ const uniqueSeniorities = computed(() => {
   return seniorities.sort()
 })
 
-const uniqueEmployers = computed(() => {
-  const employers = [...new Set(jobs.value.map(job => job.employer).filter(Boolean))]
-  return employers.sort()
-})
+// Note: employer dropdown removed for simplicity; keep text filter only
 
 // Computed property for filtered jobs
 const filteredJobs = computed(() => {
@@ -225,7 +223,14 @@ const clearFilters = () => {
 }
 
 const hasActiveFilters = computed(() => {
-  return Object.values(filters.value).some(value => value !== '')
+  const f = filters.value
+  return Boolean(
+    (f.status && f.status !== '') ||
+    (f.seniority && f.seniority !== '') ||
+    (f.employer && String(f.employer).trim() !== '') ||
+    (f.title && String(f.title).trim() !== '') ||
+    f.starredOnly === true
+  )
 })
 
 const getFilteredCount = computed(() => {
@@ -627,152 +632,19 @@ onUnmounted(() => {
 
       <!-- View Toggle and Jobs -->
       <div v-else>
-              <!-- Filters and Controls -->
-      <div class="mb-6 space-y-4">
-        <!-- Filter Toggle and Results Count -->
-        <div class="flex justify-between items-center">
-          <div class="flex items-center space-x-4">
-            <button
-              @click="showFilters = !showFilters"
-              class="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.207A1 1 0 013 6.5V4z"></path>
-              </svg>
-              <span>Filters</span>
-              <span v-if="hasActiveFilters" class="inline-flex items-center justify-center w-5 h-5 text-xs font-medium text-white bg-blue-600 rounded-full">
-                {{ Object.values(filters).filter(v => v !== '').length }}
-              </span>
-            </button>
-            
-            <div class="text-sm text-gray-600">
-              Showing {{ getFilteredCount }} of {{ jobs.length }} jobs
-            </div>
-          </div>
-
-          <!-- View Toggle -->
-          <div class="flex items-center bg-white rounded-lg shadow-sm border border-gray-200 p-1">
-            <button
-              @click="toggleViewMode"
-              :class="[
-                'px-3 py-2 rounded-md text-sm font-medium transition-colors',
-                viewMode === 'grid' 
-                  ? 'bg-blue-100 text-blue-700' 
-                  : 'text-gray-500 hover:text-gray-700'
-              ]"
-            >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2-2v-2z"></path>
-              </svg>
-            </button>
-            <button
-              @click="toggleViewMode"
-              :class="[
-                'px-3 py-2 rounded-md text-sm font-medium transition-colors',
-                viewMode === 'list' 
-                  ? 'bg-blue-100 text-blue-700' 
-                  : 'text-gray-500 hover:text-gray-700'
-              ]"
-            >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path>
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        <!-- Filter Panel -->
-        <div v-if="showFilters" class="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <!-- Status Filter -->
-            <div>
-              <label for="status-filter" class="block text-sm font-medium text-gray-700 mb-2">Status</label>
-              <select
-                id="status-filter"
-                v-model="filters.status"
-                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
-              >
-                <option value="">All Statuses</option>
-                <option v-for="status in uniqueStatuses" :key="status" :value="status">
-                  {{ getStatusText(status) }}
-                </option>
-              </select>
-            </div>
-
-            <!-- Seniority Filter -->
-            <div>
-              <label for="seniority-filter" class="block text-sm font-medium text-gray-700 mb-2">Seniority Level</label>
-              <select
-                id="seniority-filter"
-                v-model="filters.seniority"
-                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
-              >
-                <option value="">All Levels</option>
-                <option v-for="seniority in uniqueSeniorities" :key="seniority" :value="seniority">
-                  {{ seniority }}
-                </option>
-              </select>
-            </div>
-
-            <!-- Employer Filter -->
-            <div>
-              <label for="employer-filter" class="block text-sm font-medium text-gray-700 mb-2">Employer</label>
-              <input
-                id="employer-filter"
-                v-model="filters.employer"
-                type="text"
-                placeholder="Search employers..."
-                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
-              />
-            </div>
-
-            <!-- Job Title Filter -->
-            <div>
-              <label for="title-filter" class="block text-sm font-medium text-gray-700 mb-2">Job Title</label>
-              <input
-                id="title-filter"
-                v-model="filters.title"
-                type="text"
-                placeholder="Search job titles..."
-                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
-              />
-            </div>
-            <!-- Starred Filter -->
-            <div class="flex items-end">
-              <label class="inline-flex items-center space-x-2 text-sm text-gray-700">
-                <input type="checkbox" v-model="filters.starredOnly" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                <span>Starred only</span>
-              </label>
-            </div>
-          </div>
-
-          <!-- Filter Actions -->
-          <div class="flex justify-end mt-4 pt-4 border-t border-gray-200">
-            <button
-              @click="clearFilters"
-              class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
-            >
-              Clear All Filters
-            </button>
-          </div>
-        </div>
-
-        <!-- Sorting -->
-        <div class="flex items-center space-x-2">
-          <label for="sort-select" class="text-sm font-medium text-gray-700">Sort by:</label>
-          <select
-            id="sort-select"
-            v-model="sortBy"
-            class="px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 shadow-sm"
-          >
-            <option value="default">Default (No sorting)</option>
-            <option value="status">By Status (New first, Rejected last)</option>
-            <option value="seniority">By Seniority Level</option>
-            <option value="title">By Job Title</option>
-            <option value="employer">By Employer Name</option>
-          </select>
-        </div>
-      </div>
+        <FilterBar
+          v-model="filters"
+          :unique-statuses="uniqueStatuses"
+          :unique-seniorities="uniqueSeniorities"
+          :sort-by="sortBy"
+          :view-mode="viewMode"
+          :has-active-filters="hasActiveFilters"
+          :filtered-count="getFilteredCount"
+          :total-count="jobs.length"
+          @update:sortBy="(v) => (sortBy = v)"
+          @update:viewMode="toggleViewMode()"
+          @clear="clearFilters"
+        />
 
         <!-- Jobs Grid View -->
         <div v-if="viewMode === 'grid'" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -987,271 +859,17 @@ onUnmounted(() => {
       </div>
 
       <!-- Job Details Modal -->
-      <div v-if="showModal && selectedJob" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-          <!-- Debug Info (hidden in production) -->
-          <div v-if="isDev" class="bg-yellow-100 p-2 text-xs text-gray-600">
-            Debug: Modal visible, selectedJob: {{ selectedJob ? 'Yes' : 'No' }}, 
-            Job ID: {{ selectedJob?.id }}, 
-            Title: {{ selectedJob?.job_title }}
-          </div>
-          
-          <!-- Modal Header -->
-          <div class="flex items-center justify-between p-6 border-b border-gray-200">
-            <h2 class="text-2xl font-bold text-gray-900 text-left">{{ selectedJob.job_title }}</h2>
-            <button 
-              @click="closeModal"
-              class="text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-              </svg>
-            </button>
-          </div>
-
-          <!-- Modal Content -->
-          <div class="p-6 space-y-6">
-            <!-- Modal Quick Actions -->
-            <div class="flex items-center gap-3">
-              <button @click="openExternal(selectedJob)" class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700">Open Posting</button>
-              <button @click="copyCoverLetter(selectedJob)" class="inline-flex items-center px-3 py-1.5 bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200">Copy Cover Letter</button>
-              <button @click="markApplied(selectedJob.id)" class="inline-flex items-center px-3 py-1.5 bg-green-600 text-white rounded-md hover:bg-green-700">Mark Applied</button>
-              <button @click="markRejected(selectedJob.id)" class="inline-flex items-center px-3 py-1.5 bg-red-600 text-white rounded-md hover:bg-red-700">Reject</button>
-            </div>
-            <!-- Job Overview -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h3 class="text-lg font-semibold text-gray-900 mb-3 text-left">Job Overview</h3>
-                <div class="space-y-3">
-                  <div class="text-left">
-                    <span class="text-sm font-medium text-gray-500 text-left">Company:</span>
-                    <p class="text-gray-900 text-left">{{ selectedJob.employer }}</p>
-                  </div>
-                  <div v-if="selectedJob.job_location" class="text-left">
-                    <span class="text-sm font-medium text-gray-500 text-left">Location:</span>
-                    <p class="text-gray-900 text-left">{{ selectedJob.job_location }}</p>
-                  </div>
-                  <div v-if="selectedJob.employment_type" class="text-left">
-                    <span class="text-sm font-medium text-gray-500 text-left">Employment Type:</span>
-                    <p class="text-gray-900 text-left">{{ selectedJob.employment_type }}</p>
-                  </div>
-                  <div v-if="selectedJob.seniority_level" class="text-left">
-                    <span class="text-sm font-medium text-gray-500 text-left">Seniority Level:</span>
-                    <p class="text-gray-900 text-left">{{ selectedJob.seniority_level }}</p>
-                  </div>
-                  <div v-if="selectedJob.job_function" class="text-left">
-                    <span class="text-sm font-medium text-gray-500 text-left">Job Function:</span>
-                    <p class="text-gray-900 text-left">{{ selectedJob.job_function }}</p>
-                  </div>
-                  <div v-if="selectedJob.industries" class="text-left">
-                    <span class="text-sm font-medium text-gray-500 text-left">Industries:</span>
-                    <p class="text-gray-900 text-left">{{ selectedJob.industries }}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <h3 class="text-lg font-semibold text-gray-900 mb-3 text-left">Processing Info</h3>
-                <div class="space-y-3">
-                  <div class="text-left">
-                    <span class="text-sm font-medium text-gray-500 text-left">Run ID:</span>
-                    <p class="text-gray-900 font-mono text-sm text-left">{{ selectedJob.runid }}</p>
-                  </div>
-                  <div class="text-left">
-                    <span class="text-sm font-medium text-gray-500 text-left">Processed:</span>
-                    <p class="text-gray-900 text-left">{{ formatDate(selectedJob.created_at) }}</p>
-                  </div>
-                  <div class="text-left">
-                    <span class="text-sm font-medium text-gray-500 text-left">Status:</span>
-                    <div class="flex items-center space-x-2 mt-1">
-                      <span 
-                        class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                        :class="getStatusClass(selectedJob.status)"
-                      >
-                        {{ getStatusText(selectedJob.status) }}
-                      </span>
-                      <select 
-                        @change="updateJobStatus(selectedJob.id, $event.target.value)"
-                        :value="selectedJob.status"
-                        class="ml-2 px-2 py-1 text-xs border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
-                      >
-                        <option value="new">New</option>
-                        <option value="applied">Applied</option>
-                        <option value="user_rejected">Rejected</option>
-                        <option value="filter_rejected">Filtered</option>
-                        <option value="interview_scheduled">Interview Scheduled</option>
-                        <option value="interview_completed">Interview Completed</option>
-                        <option value="offer_received">Offer Received</option>
-                        <option value="offer_accepted">Offer Accepted</option>
-                        <option value="offer_rejected">Offer Rejected</option>
-                        <option value="not_answered">No Reply</option>
-                        <option value="employer_rejected">Employer Rejected</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- AI Generated Summary -->
-            <div v-if="selectedJob.job_summary_parsed || selectedJob.job_summary">
-              <h3 class="text-lg font-semibold text-gray-900 mb-3 text-left">AI Summary</h3>
-              <div v-if="selectedJob.job_summary_parsed" class="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-4 text-left">
-                <!-- Summary -->
-                <div class="text-left">
-                  <h4 class="font-medium text-gray-900 mb-2 text-left">Summary</h4>
-                  <div 
-                    class="text-gray-900 prose prose-sm max-w-none text-left"
-                    v-html="typeof selectedJob.job_summary_parsed.summary === 'string' ? formatJobDescription(selectedJob.job_summary_parsed.summary) : selectedJob.job_summary_parsed.summary"
-                  ></div>
-                </div>
-                
-                <!-- Responsibilities -->
-                <div v-if="selectedJob.job_summary_parsed.responsibilities" class="text-left">
-                  <h4 class="font-medium text-gray-900 mb-2 text-left">Key Responsibilities</h4>
-                  <div 
-                    class="text-gray-900 prose prose-sm max-w-none text-left"
-                    v-html="typeof selectedJob.job_summary_parsed.responsibilities === 'string' ? formatJobDescription(selectedJob.job_summary_parsed.responsibilities) : selectedJob.job_summary_parsed.responsibilities"
-                  ></div>
-                </div>
-                
-                <!-- Requirements -->
-                <div v-if="selectedJob.job_summary_parsed.requirements && selectedJob.job_summary_parsed.requirements.length > 0" class="text-left">
-                  <h4 class="font-medium text-gray-900 mb-2 text-left">Requirements</h4>
-                  <ul class="list-disc list-inside text-gray-900 space-y-1 text-left">
-                    <li v-for="(req, index) in selectedJob.job_summary_parsed.requirements" :key="index" class="text-left">
-                      {{ req }}
-                    </li>
-                  </ul>
-                </div>
-                
-                <!-- Opportunity Interest -->
-                <div v-if="selectedJob.job_summary_parsed.opportunity_interest" class="text-left">
-                  <h4 class="font-medium text-gray-900 mb-2 text-left">Opportunity Interest</h4>
-                  <div 
-                    class="text-gray-900 prose prose-sm max-w-none text-left"
-                    v-html="typeof selectedJob.job_summary_parsed.opportunity_interest === 'string' ? formatJobDescription(selectedJob.job_summary_parsed.opportunity_interest) : selectedJob.job_summary_parsed.opportunity_interest"
-                  ></div>
-                </div>
-                
-                <!-- Background Alignment -->
-                <div v-if="selectedJob.job_summary_parsed.background_aligns" class="text-left">
-                  <h4 class="font-medium text-gray-900 mb-2 text-left">Background Alignment</h4>
-                  <div class="flex items-center space-x-3">
-                    <div class="flex items-center space-x-1">
-                      <span 
-                        v-for="i in 5" 
-                        :key="i"
-                        class="w-4 h-4 rounded-full border-2"
-                        :class="i <= selectedJob.job_summary_parsed.background_aligns 
-                          ? 'bg-blue-500 border-blue-500' 
-                          : 'bg-gray-200 border-gray-300'"
-                      ></span>
-                    </div>
-                    <span class="text-sm text-gray-600">
-                      {{ selectedJob.job_summary_parsed.background_aligns }}/5 alignment
-                    </span>
-                  </div>
-                  <div class="mt-2 text-xs text-gray-500">
-                    <span v-if="selectedJob.job_summary_parsed.background_aligns <= 1">Poor alignment</span>
-                    <span v-else-if="selectedJob.job_summary_parsed.background_aligns <= 2">Fair alignment</span>
-                    <span v-else-if="selectedJob.job_summary_parsed.background_aligns <= 3">Good alignment</span>
-                    <span v-else-if="selectedJob.job_summary_parsed.background_aligns <= 4">Very good alignment</span>
-                    <span v-else>Excellent alignment</span>
-                  </div>
-                </div>
-              </div>
-              
-              <!-- Fallback for old format -->
-              <div v-else class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
-                <div 
-                  class="text-gray-900 prose prose-sm max-w-none text-left"
-                  v-html="formatJobDescription(selectedJob.job_summary)"
-                ></div>
-              </div>
-            </div>
-
-            <!-- Original Job Description -->
-            <div v-if="selectedJob.job_description">
-              <h3 class="text-lg font-semibold text-gray-900 mb-3 text-left">Original Job Description</h3>
-              <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 max-h-64 overflow-y-auto">
-                <div 
-                  class="text-gray-900 prose prose-sm max-w-none text-left"
-                  v-html="formatJobDescription(selectedJob.job_description)"
-                ></div>
-              </div>
-            </div>
-
-            <!-- AI Generated Cover Letter -->
-            <div v-if="selectedJob.cover_letter_parsed || selectedJob.cover_letter">
-              <h3 class="text-lg font-semibold text-gray-900 mb-3 text-left">AI Generated Cover Letter</h3>
-              <div v-if="selectedJob.cover_letter_parsed" class="bg-green-50 border border-green-200 rounded-lg p-4 max-h-96 overflow-y-auto space-y-4 text-left">
-                <!-- Subject -->
-                <div v-if="selectedJob.cover_letter_parsed.subject" class="text-left">
-                  <h4 class="font-medium text-gray-900 mb-2 text-left">Subject</h4>
-                  <div class="text-gray-900 font-medium text-left">
-                    {{ selectedJob.cover_letter_parsed.subject }}
-                  </div>
-                </div>
-                
-                <!-- Letter Content -->
-                <div v-if="selectedJob.cover_letter_parsed.letter_content" class="text-left">
-                  <h4 class="font-medium text-gray-900 mb-2 text-left">Letter Content</h4>
-                  <div 
-                    class="text-gray-900 prose prose-sm max-w-none text-left"
-                    v-html="typeof selectedJob.cover_letter_parsed.letter_content === 'string' ? formatJobDescription(selectedJob.cover_letter_parsed.letter_content) : selectedJob.cover_letter_parsed.letter_content"
-                  ></div>
-                </div>
-                
-                <!-- Letter Closing -->
-                <div v-if="selectedJob.cover_letter_parsed.letter_closing" class="text-left">
-                  <h4 class="font-medium text-gray-900 mb-2 text-left">Closing</h4>
-                  <div 
-                    class="text-gray-900 prose prose-sm max-w-none text-left"
-                    v-html="typeof selectedJob.cover_letter_parsed.letter_closing === 'string' ? formatJobDescription(selectedJob.cover_letter_parsed.letter_closing) : selectedJob.cover_letter_parsed.letter_closing"
-                  ></div>
-                </div>
-              </div>
-              
-              <!-- Fallback for old format -->
-              <div v-else class="bg-green-50 border border-green-200 rounded-lg p-4 max-h-96 overflow-y-auto text-left">
-                <div 
-                  class="text-gray-900 prose prose-sm max-w-none text-left"
-                  v-html="formatJobDescription(selectedJob.cover_letter)"
-                ></div>
-              </div>
-            </div>
-
-            <!-- External Links -->
-            <div v-if="selectedJob.job_url || selectedJob.employer_url" class="flex space-x-4">
-              <a 
-                v-if="selectedJob.job_url"
-                :href="selectedJob.job_url"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
-                </svg>
-                View Job Posting
-              </a>
-              <a 
-                v-if="selectedJob.employer_url"
-                :href="selectedJob.employer_url"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-              >
-                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9v-9m0-9v9"></path>
-                </svg>
-                Company Profile
-              </a>
-            </div>
-          </div>
-        </div>
-      </div>
+      <JobDetailsModal
+        v-if="showModal && selectedJob"
+        :job="selectedJob"
+        :is-dev="isDev"
+        @close="closeModal"
+        @open="openExternal(selectedJob)"
+        @copyCL="copyCoverLetter(selectedJob)"
+        @applied="markApplied(selectedJob.id)"
+        @rejected="markRejected(selectedJob.id)"
+        @updateStatus="(status) => updateJobStatus(selectedJob.id, status)"
+      />
     </div>
   </div>
 </template>
