@@ -1,27 +1,28 @@
-# Use Node.js 18 Alpine for smaller image size
-FROM node:22-alpine
+FROM node:22-alpine AS base
 
-# Set working directory
+# Install dependencies only when needed
+FROM base AS deps
 WORKDIR /app
-
-# Copy package files
 COPY package*.json ./
-
-# Install all dependencies (including dev dependencies for build)
 RUN npm install
 
-# Copy source code
+# Rebuild the source code only when needed
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-
-# Build the Vue application
 RUN npm run build
-
-# Remove dev dependencies to reduce image size
 RUN npm prune --production
 
-# Expose ports
-EXPOSE 3000
+# Production image, copy all the files and run
+FROM base AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY package*.json ./
+COPY server.js ./
+
 EXPOSE 8080
 
-# Start the server
-CMD ["npm", "start"] 
+CMD ["npm", "start"]
