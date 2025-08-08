@@ -542,7 +542,7 @@ onMounted(() => {
               <select
                 id="status-filter"
                 v-model="filters.status"
-                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
               >
                 <option value="">All Statuses</option>
                 <option v-for="status in uniqueStatuses" :key="status" :value="status">
@@ -557,7 +557,7 @@ onMounted(() => {
               <select
                 id="seniority-filter"
                 v-model="filters.seniority"
-                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
               >
                 <option value="">All Levels</option>
                 <option v-for="seniority in uniqueSeniorities" :key="seniority" :value="seniority">
@@ -574,7 +574,7 @@ onMounted(() => {
                 v-model="filters.employer"
                 type="text"
                 placeholder="Search employers..."
-                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
               />
             </div>
 
@@ -586,7 +586,7 @@ onMounted(() => {
                 v-model="filters.title"
                 type="text"
                 placeholder="Search job titles..."
-                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
               />
             </div>
           </div>
@@ -608,7 +608,7 @@ onMounted(() => {
           <select
             id="sort-select"
             v-model="sortBy"
-            class="px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-sm"
+            class="px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 shadow-sm"
           >
             <option value="default">Default (No sorting)</option>
             <option value="status">By Status (New first, Rejected last)</option>
@@ -647,7 +647,7 @@ onMounted(() => {
                     @change="updateJobStatus(job.id, $event.target.value)"
                     :value="job.status"
                     @click.stop
-                    class="px-1 py-0.5 text-xs border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                    class="px-1 py-0.5 text-xs border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
                   >
                     <option value="new">New</option>
                     <option value="applied">Applied</option>
@@ -731,7 +731,7 @@ onMounted(() => {
                       @change="updateJobStatus(job.id, $event.target.value)"
                       :value="job.status"
                       @click.stop
-                      class="px-1 py-0.5 text-xs border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                      class="px-1 py-0.5 text-xs border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
                     >
                       <option value="new">New</option>
                       <option value="applied">Applied</option>
@@ -869,7 +869,7 @@ onMounted(() => {
                       <select 
                         @change="updateJobStatus(selectedJob.id, $event.target.value)"
                         :value="selectedJob.status"
-                        class="ml-2 px-2 py-1 text-xs border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        class="ml-2 px-2 py-1 text-xs border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
                       >
                         <option value="new">New</option>
                         <option value="applied">Applied</option>
