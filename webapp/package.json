@@ -13,7 +13,8 @@
     "vue": "^3.3.4",
     "express": "^4.18.2",
     "sqlite3": "^5.1.6",
-    "cors": "^2.8.5"
+    "cors": "^2.8.5",
+    "vue-router": "^4.3.0"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^4.2.3",
