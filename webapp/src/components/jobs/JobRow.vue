@@ -11,18 +11,18 @@ const formatDate = (dateString) => new Date(dateString).toLocaleDateString('en-U
 
 const getStatusClass = (status) => {
   switch (status) {
-    case 'new': return 'bg-blue-100 text-blue-700'
-    case 'applied': return 'bg-green-100 text-green-700'
+    case 'new': return 'bg-brand-100 text-brand-700'
+    case 'applied': return 'bg-success-100 text-success-700'
     case 'user_rejected':
     case 'filter_rejected':
-    case 'employer_rejected': return 'bg-red-100 text-red-700'
-    case 'interview_scheduled': return 'bg-yellow-100 text-yellow-700'
-    case 'interview_completed': return 'bg-purple-100 text-purple-700'
-    case 'offer_received': return 'bg-indigo-100 text-indigo-700'
-    case 'offer_accepted': return 'bg-green-100 text-green-700'
-    case 'offer_rejected': return 'bg-red-100 text-red-700'
-    case 'not_answered': return 'bg-gray-100 text-gray-700'
-    default: return 'bg-gray-100 text-gray-600'
+    case 'employer_rejected': return 'bg-danger-100 text-danger-700'
+    case 'interview_scheduled': return 'bg-warning-100 text-warning-700'
+    case 'interview_completed': return 'bg-info-100 text-info-700'
+    case 'offer_received': return 'bg-brand-100 text-brand-700'
+    case 'offer_accepted': return 'bg-success-100 text-success-700'
+    case 'offer_rejected': return 'bg-danger-100 text-danger-700'
+    case 'not_answered': return 'bg-muted-100 text-muted-700'
+    default: return 'bg-muted-100 text-muted-600'
   }
 }
 
@@ -51,21 +51,21 @@ const getJobSummaryText = (job) => {
 <template>
   <div
     :class="[
-      'job-tile bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all duration-200 cursor-pointer',
-      focused ? 'ring-2 ring-blue-400' : ''
+      'job-tile bg-white rounded-lg shadow-sm border border-muted-200 p-6 hover:shadow-md transition-all duration-200 cursor-pointer',
+      focused ? 'ring-2 ring-brand-400' : ''
     ]"
     @click="$emit('open', job.id)"
   >
     <div class="flex items-start space-x-4">
       <div class="flex-1 min-w-0">
         <div class="flex items-start justify-between mb-2">
-          <h3 class="text-lg font-semibold text-gray-900 line-clamp-2 text-left">{{ job.job_title }}</h3>
+          <h3 class="text-lg font-semibold text-muted-900 line-clamp-2 text-left">{{ job.job_title }}</h3>
           <div class="flex items-center space-x-2 ml-4 flex-shrink-0">
-            <button @click.stop="$emit('toggleStar', job.id)" :aria-pressed="isStarred" :title="isStarred ? 'Unstar' : 'Star'" class="p-1 rounded hover:bg-gray-100">
-              <svg :class="['w-4 h-4', isStarred ? 'text-yellow-500' : 'text-gray-400']" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.803 2.036a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.803-2.036a1 1 0 00-1.176 0l-2.803 2.036c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+            <button @click.stop="$emit('toggleStar', job.id)" :aria-pressed="isStarred" :title="isStarred ? 'Unstar' : 'Star'" class="p-1 rounded hover:bg-muted-100">
+              <svg :class="['w-4 h-4', isStarred ? 'text-warning-500' : 'text-muted-400']" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.803 2.036a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.803-2.036a1 1 0 00-1.176 0l-2.803 2.036c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
             </button>
             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium" :class="getStatusClass(job.status)">{{ getStatusText(job.status) }}</span>
-            <select @change="$emit('updateStatus', $event.target.value)" :value="job.status" @click.stop class="px-1 py-0.5 text-xs border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900">
+            <select @change="$emit('updateStatus', $event.target.value)" :value="job.status" @click.stop class="px-1 py-0.5 text-xs border border-muted-300 rounded-md focus:ring-1 focus:ring-brand-500 focus:border-brand-500 bg-white text-muted-900">
               <option value="new">New</option>
               <option value="applied">Applied</option>
               <option value="user_rejected">Rejected</option>
@@ -80,23 +80,23 @@ const getJobSummaryText = (job) => {
             </select>
           </div>
         </div>
-        <p class="text-sm text-gray-600 mb-2 text-left">{{ job.employer }}</p>
-        <div class="flex items-center space-x-4 text-sm text-gray-500 mb-3">
+        <p class="text-sm text-muted-600 mb-2 text-left">{{ job.employer }}</p>
+        <div class="flex items-center space-x-4 text-sm text-muted-500 mb-3">
           <div v-if="job.job_location" class="flex items-center"><svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg><span class="text-left">{{ job.job_location }}</span></div>
           <div v-if="job.employment_type" class="flex items-center"><svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2-2v2m8 0V6a2 2 0 012 2v6a2 2 0 01-2 2H8a2 2 0 01-2-2V8a2 2 0 012-2V6"/></svg><span class="text-left">{{ job.employment_type }}</span></div>
           <div v-if="job.seniority_level" class="flex items-center"><svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span class="text-left">{{ job.seniority_level }}</span></div>
         </div>
-        <p class="text-sm text-gray-700 line-clamp-2 text-left">{{ truncateText(getJobSummaryText(job), 200) }}</p>
-        <div class="flex items-center space-x-3 mt-2">
-          <button @click.stop="$emit('openExternal', job)" class="text-xs text-blue-600 hover:text-blue-700">Open</button>
-          <button @click.stop="$emit('copyCL', job)" class="text-xs text-gray-600 hover:text-gray-800">Copy CL</button>
-          <button @click.stop="$emit('applied', job.id)" class="text-xs text-green-600 hover:text-green-700">Applied</button>
-          <button @click.stop="$emit('rejected', job.id)" class="text-xs text-red-600 hover:text-red-700">Reject</button>
+        <p class="text-sm text-muted-700 line-clamp-2 text-left">{{ truncateText(getJobSummaryText(job), 200) }}</p>
+        <div class="flex items-center space-x-2 mt-2">
+          <button @click.stop="$emit('openExternal', job)" class="text-xs px-2 py-1 rounded bg-brand-50 text-brand-700 hover:bg-brand-100">Open</button>
+          <button @click.stop="$emit('copyCL', job)" class="text-xs px-2 py-1 rounded bg-muted-100 text-muted-700 hover:bg-muted-200">Copy CL</button>
+          <button @click.stop="$emit('applied', job.id)" class="text-xs px-2 py-1 rounded bg-success-600 text-white hover:bg-success-700">Applied</button>
+          <button @click.stop="$emit('rejected', job.id)" class="text-xs px-2 py-1 rounded bg-danger-600 text-white hover:bg-danger-700">Reject</button>
         </div>
       </div>
-      <div class="flex flex-col items-end space-y-2 text-xs text-gray-400">
+      <div class="flex flex-col items-end space-y-2 text-xs text-muted-400">
         <span class="text-left">Processed: {{ formatDate(job.created_at) }}</span>
-        <span class="text-blue-600 hover:text-blue-700">View Details →</span>
+        <span class="text-brand-600 hover:text-brand-700">View Details →</span>
       </div>
     </div>
   </div>

@@ -113,42 +113,42 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeyDown))
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50 py-8">
+  <div class="min-h-screen bg-muted-50 py-8">
     <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="mb-6">
-        <h1 class="text-2xl font-bold text-gray-900">Triage Mode</h1>
-        <p class="text-gray-600">Review one job at a time. Use keyboard: a (applied), r (rejected), o (open), c (copy), ←/→ (prev/next)</p>
+        <h1 class="text-2xl font-bold text-muted-900">Triage Mode</h1>
+        <p class="text-muted-600">Review one job at a time. Use keyboard: a (applied), r (rejected), o (open), c (copy), ←/→ (prev/next)</p>
       </div>
 
       <div v-if="loading" class="flex justify-center items-center py-12">
-        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-        <span class="ml-3 text-lg text-gray-600">Loading job...</span>
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
+        <span class="ml-3 text-lg text-muted-600">Loading job...</span>
       </div>
 
-      <div v-else-if="error" class="bg-red-50 border border-red-200 rounded-lg p-6">{{ error }}</div>
+      <div v-else-if="error" class="bg-danger-50 border border-danger-200 rounded-lg p-6">{{ error }}</div>
 
-      <div v-else-if="!selectedJob" class="bg-gray-50 border border-gray-200 rounded-lg p-6">No jobs found.</div>
+      <div v-else-if="!selectedJob" class="bg-muted-50 border border-muted-200 rounded-lg p-6">No jobs found.</div>
 
       <div v-else class="space-y-4">
-        <div class="flex items-center justify-between text-sm text-gray-600">
+        <div class="flex items-center justify-between text-sm text-muted-600">
           <div>Job {{ (page - 1) * pageSize + currentIndex + 1 }} of {{ total }}</div>
           <div class="space-x-2">
-            <button :disabled="!hasPrev" @click="regress" class="px-3 py-1.5 border rounded disabled:opacity-50">Prev</button>
-            <button :disabled="!hasNext" @click="advance" class="px-3 py-1.5 border rounded disabled:opacity-50">Next</button>
+            <button :disabled="!hasPrev" @click="regress" class="px-3 py-1.5 border rounded disabled:opacity-50 border-muted-300 text-muted-700 bg-white hover:bg-muted-50">Prev</button>
+            <button :disabled="!hasNext" @click="advance" class="px-3 py-1.5 border rounded disabled:opacity-50 border-muted-300 text-muted-700 bg-white hover:bg-muted-50">Next</button>
           </div>
         </div>
 
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div class="bg-white rounded-lg shadow-sm border border-muted-200 p-6">
           <div class="flex items-start justify-between mb-4">
             <div>
-              <h2 class="text-xl font-semibold text-gray-900">{{ selectedJob.job_title }}</h2>
-              <p class="text-sm text-gray-600">{{ selectedJob.employer }}</p>
+              <h2 class="text-xl font-semibold text-muted-900">{{ selectedJob.job_title }}</h2>
+              <p class="text-sm text-muted-600">{{ selectedJob.employer }}</p>
             </div>
             <div class="space-x-2">
-              <button @click="openExternal(selectedJob)" class="px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700">Open</button>
-              <button @click="copyCoverLetter(selectedJob)" class="px-3 py-1.5 bg-gray-100 text-gray-800 rounded hover:bg-gray-200">Copy CL</button>
-              <button @click="markApplied" class="px-3 py-1.5 bg-green-600 text-white rounded hover:bg-green-700">Applied</button>
-              <button @click="markRejected" class="px-3 py-1.5 bg-red-600 text-white rounded hover:bg-red-700">Reject</button>
+              <button @click="openExternal(selectedJob)" class="px-3 py-1.5 bg-brand-600 text-white rounded hover:bg-brand-700">Open</button>
+              <button @click="copyCoverLetter(selectedJob)" class="px-3 py-1.5 bg-muted-100 text-muted-800 rounded hover:bg-muted-200">Copy CL</button>
+              <button @click="markApplied" class="px-3 py-1.5 bg-success-600 text-white rounded hover:bg-success-700">Applied</button>
+              <button @click="markRejected" class="px-3 py-1.5 bg-danger-600 text-white rounded hover:bg-danger-700">Reject</button>
             </div>
           </div>
 

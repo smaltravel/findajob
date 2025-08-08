@@ -610,27 +610,27 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50 py-8">
+  <div class="min-h-screen bg-muted-50 py-8">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <!-- Header -->
       <div class="mb-8">
-        <h1 class="text-3xl font-bold text-gray-900">Processed Jobs</h1>
-        <p class="mt-2 text-gray-600">View all AI-processed job opportunities</p>
+        <h1 class="text-3xl font-bold text-muted-900">Processed Jobs</h1>
+        <p class="mt-2 text-muted-600">View all AI-processed job opportunities</p>
       </div>
 
       <!-- Loading State -->
       <div v-if="loading" class="flex justify-center items-center py-12">
-        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-        <span class="ml-3 text-lg text-gray-600">Loading processed jobs...</span>
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
+        <span class="ml-3 text-lg text-muted-600">Loading processed jobs...</span>
       </div>
 
       <!-- Error State -->
       <div v-else-if="error" class="py-12">
-        <div class="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md">
-          <p class="text-red-600 mb-4 text-left">{{ error }}</p>
+        <div class="bg-danger-50 border border-danger-200 rounded-lg p-6 max-w-md">
+          <p class="text-danger-700 mb-4 text-left">{{ error }}</p>
           <button 
             @click="loadJobs"
-            class="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg transition-colors"
+            class="px-4 py-2 bg-danger-100 hover:bg-danger-200 text-danger-700 rounded-lg transition-colors"
           >
             Retry
           </button>
@@ -639,12 +639,12 @@ onUnmounted(() => {
 
       <!-- Empty State -->
       <div v-else-if="jobs.length === 0" class="py-12">
-        <div class="bg-gray-50 border border-gray-200 rounded-lg p-8 max-w-md">
-          <svg class="h-12 w-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="bg-muted-50 border border-muted-200 rounded-lg p-8 max-w-md">
+          <svg class="h-12 w-12 text-muted-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2-2v2m8 0V6a2 2 0 012 2v6a2 2 0 01-2 2H8a2 2 0 01-2-2V8a2 2 0 012-2V6"></path>
           </svg>
-          <h3 class="text-lg font-medium text-gray-900 mb-2 text-left">No processed jobs found</h3>
-          <p class="text-gray-600 text-left">Jobs will appear here after they have been processed by the AI system.</p>
+          <h3 class="text-lg font-medium text-muted-900 mb-2 text-left">No processed jobs found</h3>
+          <p class="text-muted-600 text-left">Jobs will appear here after they have been processed by the AI system.</p>
         </div>
       </div>
 
@@ -704,10 +704,10 @@ onUnmounted(() => {
 
         <!-- Pagination -->
         <div class="mt-6 flex items-center justify-between">
-          <div class="text-sm text-gray-600">Page {{ page }} of {{ totalPages }} ({{ total }} total)</div>
+          <div class="text-sm text-muted-600">Page {{ page }} of {{ totalPages }} ({{ total }} total)</div>
           <div class="space-x-2">
-            <button :disabled="page <= 1" @click="page = Math.max(1, page - 1); loadJobs();" class="px-3 py-1.5 border rounded disabled:opacity-50">Prev</button>
-            <button :disabled="page >= totalPages" @click="page = Math.min(totalPages, page + 1); loadJobs();" class="px-3 py-1.5 border rounded disabled:opacity-50">Next</button>
+            <button :disabled="page <= 1" @click="page = Math.max(1, page - 1); loadJobs();" class="px-3 py-1.5 border rounded disabled:opacity-50 border-muted-300 text-muted-700 bg-white hover:bg-muted-50">Prev</button>
+            <button :disabled="page >= totalPages" @click="page = Math.min(totalPages, page + 1); loadJobs();" class="px-3 py-1.5 border rounded disabled:opacity-50 border-muted-300 text-muted-700 bg-white hover:bg-muted-50">Next</button>
           </div>
         </div>
       </div>
