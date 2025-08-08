@@ -81,8 +81,12 @@ const getAlignmentText = (score) => {
               <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.803 2.036a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.803-2.036a1 1 0 00-1.176 0l-2.803 2.036c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
             </svg>
           </button>
-          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium" :class="getStatusClass(job.status)">{{ getStatusText(job.status) }}</span>
-          <select @change="$emit('updateStatus', $event.target.value)" :value="job.status" @click.stop class="px-1 py-0.5 text-xs border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900">
+          <select
+            @change="$emit('updateStatus', $event.target.value)"
+            :value="job.status"
+            @click.stop
+            :class="['px-2 py-0.5 text-xs rounded-full font-medium focus:ring-1 focus:ring-brand-500 focus:border-brand-500 border border-transparent', getStatusClass(job.status)]"
+          >
             <option value="new">New</option>
             <option value="applied">Applied</option>
             <option value="user_rejected">Rejected</option>

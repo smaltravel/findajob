@@ -91,8 +91,7 @@ const formatJobDescription = (description) => {
               <div class="text-left">
                 <span class="text-sm font-medium text-muted-500">Status:</span>
                 <div class="flex items-center space-x-2 mt-1">
-                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium" :class="getStatusClass(job.status)">{{ getStatusText(job.status) }}</span>
-                  <select :value="job.status" @change="$emit('updateStatus', $event.target.value)" class="ml-2 px-2 py-1 text-xs border border-muted-300 rounded-md focus:ring-2 focus:ring-brand-500 focus:border-brand-500 bg-white text-muted-900">
+                  <select :value="job.status" @change="$emit('updateStatus', $event.target.value)" class="ml-0 px-2 py-1 text-xs rounded-full font-medium focus:ring-2 focus:ring-brand-500 focus:border-brand-500 border border-transparent" :class="getStatusClass(job.status)">
                     <option value="new">New</option>
                     <option value="applied">Applied</option>
                     <option value="user_rejected">Rejected</option>
