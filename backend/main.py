@@ -41,8 +41,9 @@ class PipelineResponse(BaseModel):
 
 class TaskData(BaseModel):
     run_id: str
-    random_value: int
-    password: str
+    jobs_processed: int
+    total_jobs: int
+    status: str
 
 
 class TaskStatus(BaseModel):
@@ -84,6 +85,28 @@ def get_db_connection():
         return conn
     except Exception as e:
         print(f"Database connection error: {e}")
+        return None
+
+
+def safe_get_task_result(task_result):
+    """Safely get task result with proper error handling"""
+    try:
+        if task_result.ready():
+            if task_result.successful():
+                return task_result.result
+            else:
+                # Task failed, get error info safely
+                try:
+                    info = task_result.info
+                    if isinstance(info, dict) and 'exc_type' in info:
+                        return None  # Task failed with proper exception info
+                    else:
+                        return None  # Task failed but no proper exception info
+                except Exception:
+                    return None  # Can't get exception info
+        return None  # Task not ready
+    except Exception as e:
+        print(f"Error getting task result: {e}")
         return None
 
 
@@ -170,30 +193,51 @@ def check_and_continue_pipeline(run_id: str):
 
     # Check if Service 1 completed
     if pipeline_task.service1_task_id and not pipeline_task.service2_task_id:
-        service1_result = AsyncResult(
-            pipeline_task.service1_task_id, app=celery_app)
-        if service1_result.ready() and service1_result.successful():
-            # Service 1 completed, start Service 2
-            result = service1_result.result
-            jobs_found = result.get('jobs_found', 0)
-            if jobs_found is not None:
-                print(
-                    f"Service 1 completed for {run_id}, starting Service 2 with {jobs_found} jobs found")
-                # Start Service 2 (AI Job Processor)
-                service2_task = continue_pipeline.delay(run_id, jobs_found)
-                pipeline_task.service2_task_id = service2_task.id
-                pipeline_task.status = "service2_started"
-                print(
-                    f"Service 2 (AI Job Processor) started: {service2_task.id}")
+        try:
+            service1_result = AsyncResult(
+                pipeline_task.service1_task_id, app=celery_app)
+
+            # Safely get task result
+            result = safe_get_task_result(service1_result)
+            if result is not None:
+                # Service 1 completed, start Service 2
+                jobs_found = result.get('jobs_found', 0)
+                if jobs_found is not None:
+                    print(
+                        f"Service 1 completed for {run_id}, starting Service 2 with {jobs_found} jobs found")
+                    # Start Service 2 (AI Job Processor)
+                    service2_task = continue_pipeline.delay(run_id, jobs_found)
+                    pipeline_task.service2_task_id = service2_task.id
+                    pipeline_task.status = "service2_started"
+                    print(
+                        f"Service 2 (AI Job Processor) started: {service2_task.id}")
+            elif service1_result.ready():
+                # Service 1 failed
+                print(f"Service 1 failed for {run_id}")
+                pipeline_task.status = "service1_failed"
+        except Exception as e:
+            print(f"Error checking Service 1 status for {run_id}: {e}")
+            # Don't update status, just log the error
 
     # Check if Service 2 completed
     elif pipeline_task.service2_task_id:
-        service2_result = AsyncResult(
-            pipeline_task.service2_task_id, app=celery_app)
-        if service2_result.ready() and service2_result.successful():
-            # Service 2 completed, pipeline is done
-            pipeline_task.status = "completed"
-            print(f"Pipeline completed for {run_id}")
+        try:
+            service2_result = AsyncResult(
+                pipeline_task.service2_task_id, app=celery_app)
+
+            # Safely get task result
+            result = safe_get_task_result(service2_result)
+            if result is not None:
+                # Service 2 completed, pipeline is done
+                pipeline_task.status = "completed"
+                print(f"Pipeline completed for {run_id}")
+            elif service2_result.ready():
+                # Service 2 failed
+                print(f"Service 2 failed for {run_id}")
+                pipeline_task.status = "service2_failed"
+        except Exception as e:
+            print(f"Error checking Service 2 status for {run_id}: {e}")
+            # Don't update status, just log the error
 
 
 @app.on_event("startup")
@@ -272,22 +316,23 @@ async def monitor_pipeline(run_id: str):
         try:
             pipeline_result = AsyncResult(
                 pipeline_task.pipeline_task_id, app=celery_app)
-            if pipeline_result.ready():
-                if pipeline_result.successful():
-                    result = pipeline_result.result
-                    if result.get('status') == 'service1_started':
-                        pipeline_task.service1_task_id = result.get(
-                            'service1_task_id')
-                        pipeline_task.status = "service1_started"
-                        print(
-                            f"Service 1 started for {run_id}: {pipeline_task.service1_task_id}")
-                        break
-                    else:
-                        print(f"Unexpected pipeline result: {result}")
-                        return
+
+            # Safely get task result
+            result = safe_get_task_result(pipeline_result)
+            if result is not None:
+                if result.get('status') == 'service1_started':
+                    pipeline_task.service1_task_id = result.get(
+                        'service1_task_id')
+                    pipeline_task.status = "service1_started"
+                    print(
+                        f"Service 1 started for {run_id}: {pipeline_task.service1_task_id}")
+                    break
                 else:
-                    print(f"Pipeline task failed: {pipeline_result.info}")
+                    print(f"Unexpected pipeline result: {result}")
                     return
+            elif pipeline_result.ready():
+                print(f"Pipeline task failed for {run_id}")
+                return
             await asyncio.sleep(1)
         except Exception as e:
             print(f"Error monitoring pipeline: {e}")
@@ -299,24 +344,25 @@ async def monitor_pipeline(run_id: str):
             if pipeline_task.service1_task_id:
                 service1_result = AsyncResult(
                     pipeline_task.service1_task_id, app=celery_app)
-                if service1_result.ready():
-                    if service1_result.successful():
-                        result = service1_result.result
-                        jobs_found = result.get('jobs_found', 0)
-                        if jobs_found is not None:
-                            print(
-                                f"Service 1 completed for {run_id}, starting Service 2 (AI Job Processor)")
-                            # Start Service 2 (AI Job Processor)
-                            service2_task = continue_pipeline.delay(
-                                run_id, jobs_found)
-                            pipeline_task.service2_task_id = service2_task.id
-                            pipeline_task.status = "service2_started"
-                            print(
-                                f"Service 2 (AI Job Processor) started: {service2_task.id}")
-                            break
-                    else:
-                        print(f"Service 1 failed: {service1_result.info}")
-                        return
+
+                # Safely get task result
+                result = safe_get_task_result(service1_result)
+                if result is not None:
+                    jobs_found = result.get('jobs_found', 0)
+                    if jobs_found is not None:
+                        print(
+                            f"Service 1 completed for {run_id}, starting Service 2 (AI Job Processor)")
+                        # Start Service 2 (AI Job Processor)
+                        service2_task = continue_pipeline.delay(
+                            run_id, jobs_found)
+                        pipeline_task.service2_task_id = service2_task.id
+                        pipeline_task.status = "service2_started"
+                        print(
+                            f"Service 2 (AI Job Processor) started: {service2_task.id}")
+                        break
+                elif service1_result.ready():
+                    print(f"Service 1 failed for {run_id}")
+                    return
             await asyncio.sleep(1)
         except Exception as e:
             print(f"Error monitoring Service 1: {e}")
@@ -328,14 +374,16 @@ async def monitor_pipeline(run_id: str):
             if pipeline_task.service2_task_id:
                 service2_result = AsyncResult(
                     pipeline_task.service2_task_id, app=celery_app)
-                if service2_result.ready():
-                    if service2_result.successful():
-                        print(f"Pipeline completed for {run_id}")
-                        pipeline_task.status = "completed"
-                        break
-                    else:
-                        print(f"Service 2 failed: {service2_result.info}")
-                        return
+
+                # Safely get task result
+                result = safe_get_task_result(service2_result)
+                if result is not None:
+                    print(f"Pipeline completed for {run_id}")
+                    pipeline_task.status = "completed"
+                    break
+                elif service2_result.ready():
+                    print(f"Service 2 failed for {run_id}")
+                    return
             await asyncio.sleep(1)
         except Exception as e:
             print(f"Error monitoring Service 2: {e}")
@@ -357,20 +405,25 @@ async def get_pipeline_status(run_id: str):
                 try:
                     cursor = conn.cursor(cursor_factory=RealDictCursor)
                     cursor.execute(
-                        "SELECT * FROM passwords WHERE run_id = %s", (run_id,))
-                    password_record = cursor.fetchone()
+                        "SELECT COUNT(*) as processed_count FROM processed_jobs WHERE run_id = %s", (run_id,))
+                    processed_count = cursor.fetchone()["processed_count"]
+
+                    cursor.execute(
+                        "SELECT COUNT(*) as total_count FROM jobs WHERE run_id = %s", (run_id,))
+                    total_count = cursor.fetchone()["total_count"]
+
                     cursor.close()
                     conn.close()
 
-                    if password_record:
-                        return {
-                            "run_id": run_id,
-                            "status": "completed",
-                            "random_value": password_record["random_value"],
-                            "password": password_record["password"]
-                        }
+                    return {
+                        "run_id": run_id,
+                        "status": "completed",
+                        "jobs_processed": processed_count,
+                        "total_jobs": total_count,
+                        "message": f"Successfully processed {processed_count} out of {total_count} jobs"
+                    }
                 except Exception as e:
-                    print(f"Error getting password: {e}")
+                    print(f"Error getting job results: {e}")
 
         # Return current pipeline status
         return {
@@ -395,28 +448,37 @@ async def get_pipeline_status(run_id: str):
                 raise HTTPException(
                     status_code=404, detail="Pipeline not found")
 
-            # Check if password was generated
+            # Check if jobs were processed
             cursor.execute(
-                "SELECT * FROM passwords WHERE run_id = %s", (run_id,))
-            password_record = cursor.fetchone()
+                "SELECT COUNT(*) as processed_count FROM processed_jobs WHERE run_id = %s", (run_id,))
+            processed_count = cursor.fetchone()["processed_count"]
+
+            cursor.execute(
+                "SELECT COUNT(*) as total_count FROM jobs WHERE run_id = %s", (run_id,))
+            total_count = cursor.fetchone()["total_count"]
 
             cursor.close()
             conn.close()
 
-            if password_record:
+            if processed_count > 0:
                 return {
                     "run_id": run_id,
                     "status": "completed",
-                    "random_value": password_record["random_value"],
-                    "password": password_record["password"]
+                    "jobs_processed": processed_count,
+                    "total_jobs": total_count,
+                    "message": f"Successfully processed {processed_count} out of {total_count} jobs"
                 }
             else:
                 return {
                     "run_id": run_id,
                     "status": "processing",
-                    "random_value": task["random_value"] if task["random_value"] else None
+                    "jobs_processed": 0,
+                    "total_jobs": total_count
                 }
 
+        except HTTPException:
+            # Re-raise HTTP exceptions (like 404) without wrapping them
+            raise
         except Exception as e:
             print(f"Error checking status: {e}")
             raise HTTPException(
@@ -433,11 +495,17 @@ async def get_data():
         try:
             cursor = conn.cursor(cursor_factory=RealDictCursor)
 
-            # Join tasks and passwords tables
+            # Join tasks and jobs tables to get job processing statistics
             cursor.execute("""
-                SELECT t.run_id, t.random_value, p.password
+                SELECT 
+                    t.run_id, 
+                    t.status,
+                    COUNT(j.id) as total_jobs,
+                    COUNT(pj.id) as jobs_processed
                 FROM tasks t
-                LEFT JOIN passwords p ON t.run_id = p.run_id
+                LEFT JOIN jobs j ON t.run_id = j.run_id
+                LEFT JOIN processed_jobs pj ON t.run_id = pj.run_id
+                GROUP BY t.run_id, t.status
                 ORDER BY t.created_at DESC
             """)
 
@@ -449,8 +517,9 @@ async def get_data():
             for row in results:
                 data.append(TaskData(
                     run_id=row["run_id"],
-                    random_value=row["random_value"] or 0,
-                    password=row["password"] or "Not generated yet"
+                    jobs_processed=row["jobs_processed"] or 0,
+                    total_jobs=row["total_jobs"] or 0,
+                    status=row["status"]
                 ))
 
             return data
@@ -624,25 +693,27 @@ async def get_task_status(task_id: str):
     try:
         task_result = AsyncResult(task_id, app=celery_app)
 
-        if task_result.ready():
-            if task_result.successful():
-                return TaskStatus(
-                    task_id=task_id,
-                    status="completed",
-                    result=task_result.result
-                )
-            else:
-                return TaskStatus(
-                    task_id=task_id,
-                    status="failed",
-                    error=str(task_result.info)
-                )
+        # Safely get task result
+        result = safe_get_task_result(task_result)
+        if result is not None:
+            return TaskStatus(
+                task_id=task_id,
+                status="completed",
+                result=result
+            )
+        elif task_result.ready():
+            # Task failed
+            return TaskStatus(
+                task_id=task_id,
+                status="failed",
+                error="Task failed"
+            )
         else:
             # Task is still running
             return TaskStatus(
                 task_id=task_id,
                 status=task_result.state,
-                result=task_result.info if task_result.info else None
+                result=None
             )
 
     except Exception as e:
