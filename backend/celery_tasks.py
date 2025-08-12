@@ -1,11 +1,24 @@
 from celery_app import celery_app
 import psycopg2
-import random
-import string
 import time
 import os
 import sys
 from typing import List, Dict, Any
+
+# Add tools directory to path for imports
+sys.path.append('/workspace/tools')
+sys.path.append('/app/tools')
+
+# Import the job processor
+try:
+    from job_processor import JobProcessor
+    from providers import OllamaProvider, GoogleAIProvider, AIProviderConfig
+    JOB_PROCESSOR_AVAILABLE = True
+    print("✅ Job processor imported successfully")
+except ImportError as e:
+    print(f"⚠️  Warning: Could not import job processor: {e}")
+    print("   The system will use the fallback template-based processing method")
+    JOB_PROCESSOR_AVAILABLE = False
 
 # Database configuration
 DB_CONFIG = {
@@ -15,6 +28,152 @@ DB_CONFIG = {
     "password": os.getenv("DB_PASSWORD", "password"),
     "port": os.getenv("DB_PORT", "5432")
 }
+
+# AI Provider configuration
+AI_CONFIG = {
+    "provider": os.getenv("AI_PROVIDER", "ollama"),
+    "model": os.getenv("AI_MODEL", "deepseek-r1:7b"),
+    "base_url": os.getenv("AI_BASE_URL", "http://localhost:11434"),
+    "api_key": os.getenv("AI_API_KEY", None),
+    "timeout": int(os.getenv("AI_TIMEOUT", "120")),
+    "temperature": float(os.getenv("AI_TEMPERATURE", "0.7"))
+}
+
+
+class PostgreSQLJobProcessor:
+    """PostgreSQL-compatible version of JobProcessor for use in celery tasks."""
+
+    def __init__(self, db_config: dict, ai_provider):
+        """Initialize with database config and AI provider."""
+        self.db_config = db_config
+        self.ai_provider = ai_provider
+        self.conn = None
+        self.cursor = None
+
+    def connect_database(self):
+        """Connect to PostgreSQL database."""
+        try:
+            self.conn = psycopg2.connect(**self.db_config)
+            self.cursor = self.conn.cursor()
+            print("Connected to PostgreSQL database")
+        except Exception as e:
+            print(f"Failed to connect to database: {e}")
+            raise
+
+    def get_new_jobs_by_runid(self, run_id: str) -> List[Dict]:
+        """Get all new job records for the given run_id that haven't been processed yet."""
+        query = '''
+            SELECT j.* FROM jobs j
+            LEFT JOIN processed_jobs pj ON j.id = pj.job_id
+            WHERE j.run_id = %s AND pj.job_id IS NULL
+            ORDER BY j.created_at ASC
+        '''
+
+        self.cursor.execute(query, (run_id,))
+        results = self.cursor.fetchall()
+
+        # Get column names
+        columns = [desc[0] for desc in self.cursor.description]
+
+        # Convert to list of dictionaries
+        job_records = []
+        for row in results:
+            job = dict(zip(columns, row))
+            job_records.append(job)
+
+        print(f"Found {len(job_records)} new jobs for run_id: {run_id}")
+        return job_records
+
+    def process_job(self, job_data: Dict) -> Dict:
+        """Process a single job record to generate cover letter and summary."""
+        job_id = job_data['id']
+        run_id = job_data['run_id']
+
+        print(
+            f"Processing job {job_id}: {job_data.get('job_title')} at {job_data.get('employer')}")
+
+        try:
+            # Update context for the current job
+            self.ai_provider.set_job(job_data)
+
+            # Generate cover letter
+            print("Generating cover letter")
+            cover_letter = self.ai_provider.cover_letter()
+
+            # Generate job summary
+            print("Generating job summary")
+            job_summary = self.ai_provider.job_description()
+
+            return {
+                'job_id': job_id,
+                'run_id': run_id,
+                'cover_letter': cover_letter,
+                'job_summary': job_summary,
+                'processing_status': 'completed',
+                'error_message': None
+            }
+
+        except Exception as e:
+            print(f"Failed to process job {job_id}: {e}")
+            return {
+                'job_id': job_id,
+                'run_id': run_id,
+                'cover_letter': None,
+                'job_summary': None,
+                'processing_status': 'failed',
+                'error_message': str(e)
+            }
+
+    def save_processed_job(self, processed_data: Dict):
+        """Save processed job data to the database."""
+        query = '''
+            INSERT INTO processed_jobs (
+                job_id, run_id, cover_letter, job_summary, processing_status, error_message, updated_at
+            ) VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+        '''
+
+        values = (
+            processed_data['job_id'],
+            processed_data['run_id'],
+            processed_data['cover_letter'],
+            processed_data['job_summary'],
+            processed_data['processing_status'],
+            processed_data['error_message']
+        )
+
+        self.cursor.execute(query, values)
+        self.conn.commit()
+
+        print(f"Saved processed job {processed_data['job_id']} to database")
+
+    def process_jobs_by_runid(self, run_id: str):
+        """Process all new jobs for the given run_id."""
+        print(f"Starting to process jobs for run_id: {run_id}")
+
+        # Get new jobs
+        jobs = self.get_new_jobs_by_runid(run_id)
+
+        if not jobs:
+            print(f"No new jobs found for run_id: {run_id}")
+            return
+
+        # Process each job
+        for i, job in enumerate(jobs, 1):
+            print(f"Processing job {i}/{len(jobs)}")
+
+            processed_data = self.process_job(job)
+            self.save_processed_job(processed_data)
+
+            # Add a small delay between requests to be respectful to the AI API
+            time.sleep(1)
+
+        print(f"Completed processing {len(jobs)} jobs for run_id: {run_id}")
+
+    def close(self):
+        """Close the database connection."""
+        if self.conn:
+            self.conn.close()
+            print("Database connection closed")
 
 
 def get_db_connection():
@@ -75,134 +234,9 @@ def crawl_jobs(self, run_id: str, keywords: str = "python developer", location: 
             "-a", f"runid={run_id}",
             "-a", f"max_jobs={max_jobs}",
             "-a", f"seniority={seniority}",
-            "-s", "FEED_FORMAT=json",
-            "-s", f"FEED_URI=/tmp/jobs_{run_id}.json"
         ]
 
         print(f"Running command: {' '.join(cmd)}")
-        print(f"Working directory: {scrapy_dir}")
-        print(f"Current working directory: {os.getcwd()}")
-        print(
-            f"Scrapy directory contents: {os.listdir(scrapy_dir) if os.path.exists(scrapy_dir) else 'Directory not found'}")
-
-        # Check if scrapy is available
-        try:
-            scrapy_version = subprocess.run(
-                ["scrapy", "version"], capture_output=True, text=True, timeout=10)
-            print(f"Scrapy version: {scrapy_version.stdout.strip()}")
-        except Exception as e:
-            print(f"Warning: Could not get scrapy version: {e}")
-
-        # Check if the linkedin spider exists
-        spider_file = os.path.join(scrapy_dir, "spiders", "linkedin.py")
-        if not os.path.exists(spider_file):
-            print(f"Warning: LinkedIn spider not found at {spider_file}")
-            print("Available spiders:")
-            try:
-                spiders_dir = os.path.join(scrapy_dir, "spiders")
-                if os.path.exists(spiders_dir):
-                    for file in os.listdir(spiders_dir):
-                        if file.endswith('.py'):
-                            print(f"  - {file}")
-            except Exception as e:
-                print(f"Could not list spiders directory: {e}")
-
-            # Use fallback spider if available, otherwise generate mock jobs
-            fallback_spider = None
-            if os.path.exists(spiders_dir):
-                for file in os.listdir(spiders_dir):
-                    if file.endswith('.py') and file != '__init__.py':
-                        fallback_spider = file[:-3]  # Remove .py extension
-                        break
-
-            if fallback_spider:
-                print(f"Using fallback spider: {fallback_spider}")
-                # Replace 'linkedin' with fallback spider
-                cmd[2] = fallback_spider
-            else:
-                print("No fallback spider available, will generate mock jobs")
-                # Generate mock jobs directly
-                jobs_data = generate_mock_jobs(
-                    run_id, keywords, location, max_jobs, seniority)
-
-                # Store mock jobs in database
-                conn = get_db_connection()
-                if conn:
-                    try:
-                        cursor = conn.cursor()
-                        for job in jobs_data:
-                            cursor.execute("""
-                                INSERT INTO jobs (
-                                    run_id, job_id, job_title, employer, job_location,
-                                    job_description, employment_type, job_function,
-                                    seniority_level, job_url, employer_url, industries
-                                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                            """, (
-                                run_id,
-                                job.get('job_id', ''),
-                                job.get('job_title', ''),
-                                job.get('employer', ''),
-                                job.get('job_location', ''),
-                                job.get('job_description', ''),
-                                job.get('employment_type', ''),
-                                job.get('job_function', ''),
-                                job.get('seniority_level', ''),
-                                job.get('job_url', ''),
-                                job.get('employer_url', ''),
-                                job.get('industries', '')
-                            ))
-                        conn.commit()
-                        cursor.close()
-                        conn.close()
-                        print(
-                            f"Successfully stored {len(jobs_data)} mock jobs in database")
-
-                        # Update task status and return
-                        self.update_state(
-                            state="SUCCESS",
-                            meta={
-                                "status": "Mock jobs generated successfully",
-                                "run_id": run_id,
-                                "jobs_found": len(jobs_data)
-                            }
-                        )
-
-                        return {
-                            "status": "success",
-                            "run_id": run_id,
-                            "jobs_found": len(jobs_data),
-                            "keywords": keywords,
-                            "location": location,
-                            "max_jobs": max_jobs
-                        }
-                    except Exception as e:
-                        print(f"Error storing mock jobs in database: {e}")
-                        raise Exception(f"Failed to store mock jobs: {e}")
-                else:
-                    raise Exception(
-                        "Failed to connect to database for storing mock jobs")
-
-            # Continue with the mock jobs instead of failing
-            print("Continuing pipeline with mock jobs...")
-
-            # Update task status and return
-            self.update_state(
-                state="SUCCESS",
-                meta={
-                    "status": "Mock jobs generated successfully",
-                    "run_id": run_id,
-                    "jobs_found": len(jobs_data)
-                }
-            )
-
-            return {
-                "status": "success",
-                "run_id": run_id,
-                "jobs_found": len(jobs_data),
-                "keywords": keywords,
-                "location": location,
-                "max_jobs": max_jobs
-            }
 
         # Execute scrapy command
         result = subprocess.run(
@@ -214,163 +248,29 @@ def crawl_jobs(self, run_id: str, keywords: str = "python developer", location: 
         )
 
         if result.returncode != 0:
-            error_msg = f"Scrapy failed with return code {result.returncode}. Stdout: {result.stdout}, Stderr: {result.stderr}"
-            print(error_msg)
-
-            # For testing purposes, generate some mock jobs when Scrapy fails
-            print("Generating mock jobs for testing...")
-            jobs_data = generate_mock_jobs(
-                run_id, keywords, location, max_jobs, seniority)
-
-            # Store mock jobs in database
-            conn = get_db_connection()
-            if conn:
-                try:
-                    cursor = conn.cursor()
-                    for job in jobs_data:
-                        cursor.execute("""
-                            INSERT INTO jobs (
-                                run_id, job_id, job_title, employer, job_location,
-                                job_description, employment_type, job_function,
-                                seniority_level, job_url, employer_url, industries
-                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        """, (
-                            run_id,
-                            job.get('job_id', ''),
-                            job.get('job_title', ''),
-                            job.get('employer', ''),
-                            job.get('job_location', ''),
-                            job.get('job_description', ''),
-                            job.get('employment_type', ''),
-                            job.get('job_function', ''),
-                            job.get('seniority_level', ''),
-                            job.get('job_url', ''),
-                            job.get('employer_url', ''),
-                            job.get('industries', '')
-                        ))
-                    conn.commit()
-                    cursor.close()
-                    conn.close()
-                    print(
-                        f"Successfully stored {len(jobs_data)} mock jobs in database")
-                except Exception as e:
-                    print(f"Error storing mock jobs in database: {e}")
-                    raise Exception(f"Failed to store mock jobs: {e}")
-            else:
-                raise Exception(
-                    "Failed to connect to database for storing mock jobs")
-
-            # Continue with the mock jobs instead of failing
-            print("Continuing pipeline with mock jobs...")
-
-            # Update task status and return
             self.update_state(
-                state="SUCCESS",
+                state="FAILURE",
                 meta={
-                    "status": "Mock jobs generated successfully",
-                    "run_id": run_id,
-                    "jobs_found": len(jobs_data)
+                    "status": f"Scrapy failed with return code {result.returncode}. Stdout: {result.stdout}, Stderr: {result.stderr}",
+                    "run_id": run_id
                 }
             )
-
-            return {
-                "status": "success",
-                "run_id": run_id,
-                "jobs_found": len(jobs_data),
-                "keywords": keywords,
-                "location": location,
-                "max_jobs": max_jobs
-            }
+            raise
 
         print("Scrapy spider completed successfully")
-
-        # Update task status
-        self.update_state(
-            state="PROGRESS",
-            meta={"status": "Processing crawled data", "run_id": run_id}
-        )
-
-        # Read the output file and store in database
-        output_file = f"/tmp/jobs_{run_id}.json"
-        jobs_data = []
-
-        if os.path.exists(output_file):
-            try:
-                with open(output_file, 'r') as f:
-                    content = f.read().strip()
-                    if content:
-                        # Parse JSON lines format
-                        for line in content.split('\n'):
-                            if line.strip():
-                                jobs_data.append(json.loads(line))
-
-                print(f"Found {len(jobs_data)} jobs in output file")
-
-                # Store jobs in database
-                conn = get_db_connection()
-                if conn:
-                    try:
-                        cursor = conn.cursor()
-
-                        for job in jobs_data:
-                            cursor.execute("""
-                                INSERT INTO jobs (
-                                    run_id, job_id, job_title, employer, job_location,
-                                    job_description, employment_type, job_function,
-                                    seniority_level, job_url, employer_url, industries
-                                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                            """, (
-                                run_id,
-                                job.get('job_id', ''),
-                                job.get('job_title', ''),
-                                job.get('employer', ''),
-                                job.get('job_location', ''),
-                                job.get('job_description', ''),
-                                job.get('employment_type', ''),
-                                job.get('job_function', ''),
-                                job.get('seniority_level', ''),
-                                job.get('job_url', ''),
-                                job.get('employer_url', ''),
-                                job.get('industries', '')
-                            ))
-
-                        conn.commit()
-                        cursor.close()
-                        conn.close()
-
-                        print(
-                            f"Successfully stored {len(jobs_data)} jobs in database")
-
-                        # Clean up output file
-                        if os.path.exists(output_file):
-                            os.remove(output_file)
-
-                    except Exception as e:
-                        print(f"Error storing jobs in database: {e}")
-                        raise
-                else:
-                    raise Exception("Failed to connect to database")
-            except Exception as e:
-                print(f"Error processing output file: {e}")
-                raise
-        else:
-            print("No output file found, but scrapy completed successfully")
-            jobs_data = []
 
         # Update task status
         self.update_state(
             state="SUCCESS",
             meta={
                 "status": "Job crawling completed successfully",
-                "run_id": run_id,
-                "jobs_found": len(jobs_data)
+                "run_id": run_id
             }
         )
 
         return {
             "status": "success",
             "run_id": run_id,
-            "jobs_found": len(jobs_data),
             "keywords": keywords,
             "location": location,
             "max_jobs": max_jobs
@@ -397,96 +297,151 @@ def process_jobs_with_ai(self, run_id: str):
             meta={"status": "Starting AI job processing", "run_id": run_id}
         )
 
-        # Get the crawled jobs for this run_id
-        jobs = get_jobs_for_run_id(run_id)
-        if not jobs:
-            print(f"No jobs found for run_id: {run_id}")
+        # Check if job processor is available
+        if not JOB_PROCESSOR_AVAILABLE:
+            self.update_state(
+                state="FAILURE",
+                meta={"status": "Job processor not available", "run_id": run_id}
+            )
+            raise
+
+        # Initialize AI provider
+        try:
+            if AI_CONFIG["provider"] == "ollama":
+                ai_provider = OllamaProvider(
+                    AIProviderConfig(
+                        model=AI_CONFIG["model"],
+                        base_url=AI_CONFIG["base_url"],
+                        timeout=AI_CONFIG["timeout"],
+                        temperature=AI_CONFIG["temperature"]
+                    )
+                )
+            elif AI_CONFIG["provider"] == "google":
+                if not AI_CONFIG["api_key"]:
+                    raise Exception(
+                        "API key is required for Google AI provider")
+                ai_provider = GoogleAIProvider(
+                    AIProviderConfig(
+                        model=AI_CONFIG["model"],
+                        api_key=AI_CONFIG["api_key"],
+                        timeout=AI_CONFIG["timeout"],
+                        temperature=AI_CONFIG["temperature"]
+                    )
+                )
+            else:
+                self.update_state(
+                    state="FAILURE",
+                    meta={"status": "Unknown AI provider", "run_id": run_id}
+                )
+                raise
+        except Exception as e:
+            self.update_state(
+                state="FAILURE",
+                meta={"status": f"Failed to initialize AI provider: {e}",
+                      "run_id": run_id}
+            )
+            raise
+
+        # Initialize job processor
+        processor = PostgreSQLJobProcessor(DB_CONFIG, ai_provider)
+
+        try:
+            # Connect to database
+            processor.connect_database()
+
+            # Get new jobs for this run_id
+            jobs = processor.get_new_jobs_by_runid(run_id)
+            if not jobs:
+                print(f"No new jobs found for run_id: {run_id}")
+                self.update_state(
+                    state="SUCCESS",
+                    meta={
+                        "status": "No jobs to process",
+                        "run_id": run_id,
+                        "jobs_processed": 0
+                    }
+                )
+                return {
+                    "status": "success",
+                    "run_id": run_id,
+                    "jobs_processed": 0,
+                    "message": "No new jobs found to process"
+                }
+
+            print(f"Found {len(jobs)} new jobs to process with AI")
+
+            # Update task status
+            self.update_state(
+                state="PROGRESS",
+                meta={"status": "Processing jobs with AI",
+                      "run_id": run_id, "total_jobs": len(jobs)}
+            )
+
+            # Process jobs using the processor
+            processed_count = 0
+            failed_count = 0
+
+            for i, job in enumerate(jobs, 1):
+                try:
+                    print(
+                        f"Processing job {i}/{len(jobs)}: {job.get('job_title', 'Unknown')}")
+
+                    # Update progress
+                    self.update_state(
+                        state="PROGRESS",
+                        meta={
+                            "status": f"Processing job {i}/{len(jobs)}",
+                            "run_id": run_id,
+                            "current_job": i,
+                            "total_jobs": len(jobs)
+                        }
+                    )
+
+                    # Process job with AI using the processor
+                    processed_data = processor.process_job(job)
+
+                    if processed_data['processing_status'] == 'completed':
+                        # Save the processed job
+                        processor.save_processed_job(processed_data)
+                        processed_count += 1
+                        print(f"✅ Successfully processed job {i}")
+                    else:
+                        failed_count += 1
+                        print(
+                            f"❌ Failed to process job {i}: {processed_data['error_message']}")
+
+                except Exception as e:
+                    failed_count += 1
+                    print(f"❌ Error processing job {i}: {e}")
+                    # Continue with next job instead of failing completely
+
+            print(f"🎉 AI processing completed for run_id: {run_id}")
+            print(f"   Processed: {processed_count}")
+            print(f"   Failed: {failed_count}")
+
+            # Update task status
             self.update_state(
                 state="SUCCESS",
                 meta={
-                    "status": "No jobs to process",
+                    "status": "AI job processing completed successfully",
                     "run_id": run_id,
-                    "jobs_processed": 0
+                    "jobs_processed": processed_count,
+                    "jobs_failed": failed_count,
+                    "total_jobs": len(jobs)
                 }
             )
+
             return {
                 "status": "success",
-                "run_id": run_id,
-                "jobs_processed": 0,
-                "message": "No jobs found to process"
-            }
-
-        print(f"Found {len(jobs)} jobs to process with AI")
-
-        # Update task status
-        self.update_state(
-            state="PROGRESS",
-            meta={"status": "Processing jobs with AI",
-                  "run_id": run_id, "total_jobs": len(jobs)}
-        )
-
-        # Process each job with AI
-        processed_count = 0
-        failed_count = 0
-
-        for i, job in enumerate(jobs, 1):
-            try:
-                print(
-                    f"Processing job {i}/{len(jobs)}: {job.get('job_title', 'Unknown')}")
-
-                # Update progress
-                self.update_state(
-                    state="PROGRESS",
-                    meta={
-                        "status": f"Processing job {i}/{len(jobs)}",
-                        "run_id": run_id,
-                        "current_job": i,
-                        "total_jobs": len(jobs)
-                    }
-                )
-
-                # Process job with AI
-                ai_result = process_single_job_with_ai(job, run_id)
-
-                if ai_result['success']:
-                    processed_count += 1
-                    print(f"✅ Successfully processed job {i}")
-                else:
-                    failed_count += 1
-                    print(f"❌ Failed to process job {i}: {ai_result['error']}")
-
-                # Add delay between AI requests to be respectful
-                import time
-                time.sleep(1)
-
-            except Exception as e:
-                failed_count += 1
-                print(f"❌ Error processing job {i}: {e}")
-                # Continue with next job instead of failing completely
-
-        print(f"🎉 AI processing completed for run_id: {run_id}")
-        print(f"   Processed: {processed_count}")
-        print(f"   Failed: {failed_count}")
-
-        # Update task status
-        self.update_state(
-            state="SUCCESS",
-            meta={
-                "status": "AI job processing completed successfully",
                 "run_id": run_id,
                 "jobs_processed": processed_count,
                 "jobs_failed": failed_count,
                 "total_jobs": len(jobs)
             }
-        )
 
-        return {
-            "status": "success",
-            "run_id": run_id,
-            "jobs_processed": processed_count,
-            "jobs_failed": failed_count,
-            "total_jobs": len(jobs)
-        }
+        finally:
+            # Always close the processor
+            processor.close()
 
     except Exception as e:
         print(f"Service 2 (AI Job Processor) failed: {e}")
@@ -495,225 +450,6 @@ def process_jobs_with_ai(self, run_id: str):
             meta={"status": f"Service 2 failed: {str(e)}", "run_id": run_id}
         )
         raise
-
-
-def get_jobs_for_run_id(run_id: str):
-    """Get all jobs for a specific run_id"""
-    conn = get_db_connection()
-    if conn:
-        try:
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT * FROM jobs WHERE run_id = %s ORDER BY created_at ASC",
-                (run_id,)
-            )
-            results = cursor.fetchall()
-
-            # Get column names
-            columns = [desc[0] for desc in cursor.description]
-
-            # Convert to list of dictionaries
-            jobs = []
-            for row in results:
-                job = dict(zip(columns, row))
-                jobs.append(job)
-
-            cursor.close()
-            conn.close()
-            return jobs
-
-        except Exception as e:
-            print(f"Error getting jobs: {e}")
-            if conn:
-                conn.close()
-            return []
-    return []
-
-
-def process_single_job_with_ai(job: dict, run_id: str):
-    """Process a single job with AI to generate cover letter and summary"""
-    try:
-        job_id = job['id']
-        job_title = job.get('job_title', 'Unknown Position')
-        employer = job.get('employer', 'Unknown Company')
-        job_description = job.get('job_description', '')
-
-        print(f"🤖 AI processing: {job_title} at {employer}")
-
-        # Generate AI content using a simple template-based approach
-        # In a real implementation, you would call the actual AI providers
-
-        # Generate cover letter
-        cover_letter = generate_ai_cover_letter(
-            job_title, employer, job_description)
-
-        # Generate job summary
-        job_summary = generate_ai_job_summary(
-            job_title, employer, job_description)
-
-        # Store the processed results
-        success = store_processed_job(
-            job_id, run_id, cover_letter, job_summary)
-
-        if success:
-            return {
-                'success': True,
-                'job_id': job_id,
-                'cover_letter': cover_letter,
-                'job_summary': job_summary
-            }
-        else:
-            return {
-                'success': False,
-                'error': 'Failed to store processed job'
-            }
-
-    except Exception as e:
-        print(f"Error in AI processing: {e}")
-        return {
-            'success': False,
-            'error': str(e)
-        }
-
-
-def generate_ai_cover_letter(job_title: str, employer: str, job_description: str):
-    """Generate a cover letter using AI (simplified template-based approach)"""
-    # This is a simplified version - in reality, you'd call the AI providers
-    cover_letter = f"""
-Dear Hiring Manager,
-
-I am writing to express my strong interest in the {job_title} position at {employer}. 
-
-Based on the job description, I believe my background and skills align well with your requirements. The role's focus on {extract_key_skills(job_description)} particularly interests me, as I have extensive experience in these areas.
-
-I am excited about the opportunity to contribute to {employer}'s mission and would welcome the chance to discuss how my qualifications can benefit your team.
-
-Thank you for considering my application.
-
-Best regards,
-[Your Name]
-"""
-    return cover_letter.strip()
-
-
-def generate_ai_job_summary(job_title: str, employer: str, job_description: str):
-    """Generate a job summary using AI (simplified template-based approach)"""
-    # This is a simplified version - in reality, you'd call the AI providers
-    summary = f"""
-Job Summary: {job_title} at {employer}
-
-Key Responsibilities:
-{extract_responsibilities(job_description)}
-
-Required Skills:
-{extract_required_skills(job_description)}
-
-Company: {employer}
-Position Type: Full-time
-Location: Remote/On-site
-
-This position offers an exciting opportunity to work on challenging projects and grow professionally within a dynamic team environment.
-"""
-    return summary.strip()
-
-
-def extract_key_skills(description: str):
-    """Extract key skills from job description (simplified)"""
-    if not description:
-        return "technical development and problem-solving"
-
-    # Simple keyword extraction - in reality, AI would do this
-    skills = []
-    if 'python' in description.lower():
-        skills.append("Python development")
-    if 'javascript' in description.lower():
-        skills.append("JavaScript programming")
-    if 'database' in description.lower():
-        skills.append("database management")
-    if 'api' in description.lower():
-        skills.append("API development")
-    if 'cloud' in description.lower():
-        skills.append("cloud technologies")
-
-    if skills:
-        return ", ".join(skills)
-    return "technical development and problem-solving"
-
-
-def extract_responsibilities(description: str):
-    """Extract responsibilities from job description (simplified)"""
-    if not description:
-        return "• Develop and maintain software applications\n• Collaborate with cross-functional teams\n• Write clean, maintainable code"
-
-    # Simple extraction - in reality, AI would do this
-    responsibilities = []
-    if 'develop' in description.lower():
-        responsibilities.append("• Develop and maintain software applications")
-    if 'collaborate' in description.lower() or 'team' in description.lower():
-        responsibilities.append("• Collaborate with cross-functional teams")
-    if 'code' in description.lower() or 'programming' in description.lower():
-        responsibilities.append("• Write clean, maintainable code")
-    if 'test' in description.lower():
-        responsibilities.append("• Write and execute test cases")
-    if 'deploy' in description.lower():
-        responsibilities.append("• Deploy applications to production")
-
-    if responsibilities:
-        return "\n".join(responsibilities)
-    return "• Develop and maintain software applications\n• Collaborate with cross-functional teams\n• Write clean, maintainable code"
-
-
-def extract_required_skills(description: str):
-    """Extract required skills from job description (simplified)"""
-    if not description:
-        return "• Strong programming skills\n• Problem-solving abilities\n• Team collaboration experience"
-
-    # Simple extraction - in reality, AI would do this
-    skills = []
-    if 'python' in description.lower():
-        skills.append("• Python programming experience")
-    if 'javascript' in description.lower():
-        skills.append("• JavaScript/Node.js knowledge")
-    if 'database' in description.lower():
-        skills.append("• Database design and SQL skills")
-    if 'api' in description.lower():
-        skills.append("• RESTful API development")
-    if 'git' in description.lower():
-        skills.append("• Version control with Git")
-    if 'agile' in description.lower():
-        skills.append("• Agile development methodologies")
-
-    if skills:
-        return "\n".join(skills)
-    return "• Strong programming skills\n• Problem-solving abilities\n• Team collaboration experience"
-
-
-def store_processed_job(job_id: int, run_id: str, cover_letter: str, job_summary: str):
-    """Store the AI-processed job results in the database"""
-    conn = get_db_connection()
-    if conn:
-        try:
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO processed_jobs (
-                    job_id, run_id, cover_letter, job_summary, 
-                    processing_status, updated_at
-                ) VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
-            """, (job_id, run_id, cover_letter, job_summary, 'completed'))
-
-            conn.commit()
-            cursor.close()
-            conn.close()
-
-            print(f"Successfully stored AI-processed job {job_id}")
-            return True
-
-        except Exception as e:
-            print(f"Error storing processed job: {e}")
-            if conn:
-                conn.close()
-            return False
-    return False
 
 
 @celery_app.task(bind=True, name="pipeline.run_complete_pipeline")
@@ -823,80 +559,3 @@ def continue_pipeline(self, run_id: str, jobs_found: int):
                 "status": f"Continue pipeline failed: {str(e)}", "run_id": run_id}
         )
         raise
-
-
-def generate_mock_jobs(run_id: str, keywords: str, location: str, max_jobs: int, seniority: int) -> List[Dict[str, Any]]:
-    """Generate mock job data for testing when Scrapy fails"""
-    import random
-
-    # Sample job titles based on keywords
-    job_titles = [
-        f"Senior {keywords.title()}",
-        f"Lead {keywords.title()}",
-        f"{keywords.title()} Engineer",
-        f"Full Stack {keywords.title()}",
-        f"Backend {keywords.title()}",
-        f"Frontend {keywords.title()}",
-        f"DevOps {keywords.title()}",
-        f"Cloud {keywords.title()}",
-        f"Data {keywords.title()}",
-        f"ML {keywords.title()}"
-    ]
-
-    # Sample companies
-    companies = [
-        "TechCorp Inc.",
-        "Innovation Labs",
-        "Digital Solutions",
-        "Cloud Systems",
-        "Data Dynamics",
-        "AI Innovations",
-        "Future Tech",
-        "Smart Solutions",
-        "Global Tech",
-        "Startup Hub"
-    ]
-
-    # Sample locations
-    locations = [
-        "Remote",
-        "San Francisco, CA",
-        "New York, NY",
-        "Austin, TX",
-        "Seattle, WA",
-        "Boston, MA",
-        "Denver, CO",
-        "Chicago, IL",
-        "Los Angeles, CA",
-        "Miami, FL"
-    ]
-
-    # Sample job descriptions
-    descriptions = [
-        "We are looking for a talented developer to join our growing team. You will work on cutting-edge projects and help shape the future of our platform.",
-        "Join our dynamic engineering team and work on scalable solutions that impact millions of users worldwide.",
-        "Help us build the next generation of cloud-native applications using modern technologies and best practices.",
-        "We need a passionate developer to help us revolutionize the industry with innovative solutions.",
-        "Join our fast-paced startup and make a real impact on our product and company growth."
-    ]
-
-    # Generate mock jobs
-    mock_jobs = []
-    for i in range(min(max_jobs, 5)):  # Limit to 5 mock jobs max
-        job = {
-            "job_id": f"mock_{run_id}_{i}",
-            "job_title": random.choice(job_titles),
-            "employer": random.choice(companies),
-            "job_location": random.choice(locations),
-            "job_description": random.choice(descriptions),
-            "employment_type": random.choice(["Full-time", "Contract", "Part-time"]),
-            "job_function": random.choice(["Engineering", "Development", "Software", "Technology"]),
-            "seniority_level": str(seniority),
-            "job_url": f"https://example.com/jobs/mock_{i}",
-            "employer_url": "https://example.com",
-            "industries": random.choice(["Technology", "Software", "AI/ML", "Cloud Computing", "FinTech"])
-        }
-        mock_jobs.append(job)
-
-    print(f"Generated {len(mock_jobs)} mock jobs for testing")
-    return mock_jobs

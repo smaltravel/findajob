@@ -94,6 +94,17 @@ def init_database():
         try:
             cursor = conn.cursor()
 
+            # Create tasks table first (referenced by other tables)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS tasks (
+                    id SERIAL PRIMARY KEY,
+                    run_id VARCHAR(255) UNIQUE NOT NULL,
+                    status VARCHAR(50) DEFAULT 'pending',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
             # Create jobs table for storing crawled job data
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS jobs (
@@ -129,11 +140,25 @@ def init_database():
                 )
             """)
 
+            # Create indexes for better performance
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_jobs_run_id ON jobs(run_id)
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_processed_jobs_job_id ON processed_jobs(job_id)
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_processed_jobs_run_id ON processed_jobs(run_id)
+            """)
+
             conn.commit()
             cursor.close()
             conn.close()
+            print("Database tables initialized successfully")
         except Exception as e:
             print(f"Database initialization error: {e}")
+            if conn:
+                conn.close()
 
 
 def check_and_continue_pipeline(run_id: str):
