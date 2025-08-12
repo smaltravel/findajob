@@ -1,5 +1,6 @@
 # virtual environment
 .venv
+venv
 
 # ignore python files
 __pycache__/
