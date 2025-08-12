@@ -58,7 +58,7 @@ class PostgreSQLJobProcessor:
             print("Connected to PostgreSQL database")
         except Exception as e:
             print(f"Failed to connect to database: {e}")
-            raise
+            raise e
 
     def get_new_jobs_by_runid(self, run_id: str) -> List[Dict]:
         """Get all new job records for the given run_id that haven't been processed yet."""
@@ -255,7 +255,8 @@ def crawl_jobs(self, run_id: str, keywords: str = "python developer", location: 
                     "run_id": run_id
                 }
             )
-            raise
+            raise Exception(
+                f"Scrapy failed with return code {result.returncode}")
 
         print("Scrapy spider completed successfully")
 
@@ -282,7 +283,7 @@ def crawl_jobs(self, run_id: str, keywords: str = "python developer", location: 
             state="FAILURE",
             meta={"status": f"Service 1 failed: {str(e)}", "run_id": run_id}
         )
-        raise
+        raise e
 
 
 @celery_app.task(bind=True, name="service_2.process_jobs_with_ai")
@@ -303,7 +304,7 @@ def process_jobs_with_ai(self, run_id: str):
                 state="FAILURE",
                 meta={"status": "Job processor not available", "run_id": run_id}
             )
-            raise
+            raise Exception("Job processor not available")
 
         # Initialize AI provider
         try:
@@ -333,14 +334,14 @@ def process_jobs_with_ai(self, run_id: str):
                     state="FAILURE",
                     meta={"status": "Unknown AI provider", "run_id": run_id}
                 )
-                raise
+                raise Exception("Unknown AI provider")
         except Exception as e:
             self.update_state(
                 state="FAILURE",
                 meta={"status": f"Failed to initialize AI provider: {e}",
                       "run_id": run_id}
             )
-            raise
+            raise e
 
         # Initialize job processor
         processor = PostgreSQLJobProcessor(DB_CONFIG, ai_provider)
@@ -449,7 +450,7 @@ def process_jobs_with_ai(self, run_id: str):
             state="FAILURE",
             meta={"status": f"Service 2 failed: {str(e)}", "run_id": run_id}
         )
-        raise
+        raise e
 
 
 @celery_app.task(bind=True, name="pipeline.run_complete_pipeline")
@@ -505,7 +506,7 @@ def run_complete_pipeline(self, run_id: str, keywords: str = "python developer",
             state="FAILURE",
             meta={"status": f"Pipeline failed: {str(e)}", "run_id": run_id}
         )
-        raise
+        raise e
 
 
 @celery_app.task(bind=True, name="pipeline.continue_pipeline")
@@ -558,4 +559,4 @@ def continue_pipeline(self, run_id: str, jobs_found: int):
             meta={
                 "status": f"Continue pipeline failed: {str(e)}", "run_id": run_id}
         )
-        raise
+        raise e
