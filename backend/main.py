@@ -1,9 +1,9 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uuid
 import asyncio
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import os
@@ -11,7 +11,7 @@ from celery_tasks import run_complete_pipeline, continue_pipeline
 from celery.result import AsyncResult
 from celery_app import celery_app
 
-app = FastAPI(title="FindAJob Pipeline API", version="1.0.0")
+app = FastAPI(title="FindAJob AI Pipeline API", version="1.0.0")
 
 # CORS middleware
 app.add_middleware(
@@ -60,6 +60,19 @@ class PipelineTask(BaseModel):
     status: str = "started"
 
 
+class PipelineConfig(BaseModel):
+    keywords: str = "python developer"
+    location: str = "remote"
+    max_jobs: int = 10
+    seniority: int = 3
+    ai_provider: str = "template"
+    cv_path: str = "/workspace/cv.json"
+    ollama_model: str = "deepseek-r1:7b"
+    ollama_url: str = "http://localhost:11434"
+    google_model: str = "gemini-2.5-flash-lite"
+    google_api_key: Optional[str] = None
+
+
 # In-memory storage for pipeline task tracking
 pipeline_tasks: Dict[str, PipelineTask] = {}
 
@@ -81,23 +94,38 @@ def init_database():
         try:
             cursor = conn.cursor()
 
-            # Create tasks table
+            # Create jobs table for storing crawled job data
             cursor.execute("""
-                CREATE TABLE IF NOT EXISTS tasks (
-                    run_id VARCHAR(255) PRIMARY KEY,
-                    random_value INTEGER,
+                CREATE TABLE IF NOT EXISTS jobs (
+                    id SERIAL PRIMARY KEY,
+                    run_id VARCHAR(255) REFERENCES tasks(run_id),
+                    job_id VARCHAR(255),
+                    job_title TEXT,
+                    employer TEXT,
+                    job_location TEXT,
+                    job_description TEXT,
+                    employment_type TEXT,
+                    job_function TEXT,
+                    seniority_level TEXT,
+                    job_url TEXT,
+                    employer_url TEXT,
+                    industries TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
 
-            # Create passwords table
+            # Create processed_jobs table for storing AI-processed job data
             cursor.execute("""
-                CREATE TABLE IF NOT EXISTS passwords (
+                CREATE TABLE IF NOT EXISTS processed_jobs (
                     id SERIAL PRIMARY KEY,
+                    job_id INTEGER REFERENCES jobs(id),
                     run_id VARCHAR(255) REFERENCES tasks(run_id),
-                    random_value INTEGER,
-                    password VARCHAR(255),
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    cover_letter TEXT,
+                    job_summary TEXT,
+                    processing_status TEXT DEFAULT 'pending',
+                    error_message TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
 
@@ -122,15 +150,16 @@ def check_and_continue_pipeline(run_id: str):
         if service1_result.ready() and service1_result.successful():
             # Service 1 completed, start Service 2
             result = service1_result.result
-            random_value = result.get('random_value')
-            if random_value:
+            jobs_found = result.get('jobs_found', 0)
+            if jobs_found is not None:
                 print(
-                    f"Service 1 completed for {run_id}, starting Service 2 with random value: {random_value}")
-                # Start Service 2
-                service2_task = continue_pipeline.delay(run_id, random_value)
+                    f"Service 1 completed for {run_id}, starting Service 2 with {jobs_found} jobs found")
+                # Start Service 2 (AI Job Processor)
+                service2_task = continue_pipeline.delay(run_id, jobs_found)
                 pipeline_task.service2_task_id = service2_task.id
                 pipeline_task.status = "service2_started"
-                print(f"Service 2 started: {service2_task.id}")
+                print(
+                    f"Service 2 (AI Job Processor) started: {service2_task.id}")
 
     # Check if Service 2 completed
     elif pipeline_task.service2_task_id:
@@ -153,10 +182,18 @@ async def root():
     return {"message": "FindAJob Pipeline API"}
 
 
-@app.post("/pipeline", response_model=PipelineResponse)
-async def run_pipeline():
+@app.post("/api/pipeline", response_model=PipelineResponse)
+async def run_pipeline(config: PipelineConfig = Body(...)):
     """Start the pipeline and return a webhook URL for status checking"""
     run_id = str(uuid.uuid4())
+
+    print(f"🚀 Starting AI pipeline with parameters:")
+    print(f"   Keywords: {config.keywords}")
+    print(f"   Location: {config.location}")
+    print(f"   Max Jobs: {config.max_jobs}")
+    print(f"   Seniority: {config.seniority}")
+    print(f"   AI Provider: {config.ai_provider}")
+    print(f"   CV Path: {config.cv_path}")
 
     # Create initial task record
     conn = get_db_connection()
@@ -173,8 +210,9 @@ async def run_pipeline():
         except Exception as e:
             print(f"Error creating task: {e}")
 
-    # Start the Celery pipeline task
-    pipeline_task = run_complete_pipeline.delay(run_id)
+    # Start the Celery pipeline task with crawling parameters
+    pipeline_task = run_complete_pipeline.delay(
+        run_id, config.keywords, config.location, config.max_jobs, config.seniority)
     print(
         f"Started Celery pipeline task: {pipeline_task.id} for run_id: {run_id}")
 
@@ -188,7 +226,7 @@ async def run_pipeline():
     # Start background task to monitor and continue pipeline
     asyncio.create_task(monitor_pipeline(run_id))
 
-    webhook_url = f"/pipeline/status/{run_id}"
+    webhook_url = f"/api/pipeline/status/{run_id}"
 
     return PipelineResponse(
         run_id=run_id,
@@ -239,16 +277,17 @@ async def monitor_pipeline(run_id: str):
                 if service1_result.ready():
                     if service1_result.successful():
                         result = service1_result.result
-                        random_value = result.get('random_value')
-                        if random_value:
+                        jobs_found = result.get('jobs_found', 0)
+                        if jobs_found is not None:
                             print(
-                                f"Service 1 completed for {run_id}, starting Service 2")
-                            # Start Service 2
+                                f"Service 1 completed for {run_id}, starting Service 2 (AI Job Processor)")
+                            # Start Service 2 (AI Job Processor)
                             service2_task = continue_pipeline.delay(
-                                run_id, random_value)
+                                run_id, jobs_found)
                             pipeline_task.service2_task_id = service2_task.id
                             pipeline_task.status = "service2_started"
-                            print(f"Service 2 started: {service2_task.id}")
+                            print(
+                                f"Service 2 (AI Job Processor) started: {service2_task.id}")
                             break
                     else:
                         print(f"Service 1 failed: {service1_result.info}")
@@ -278,7 +317,7 @@ async def monitor_pipeline(run_id: str):
             return
 
 
-@app.get("/pipeline/status/{run_id}")
+@app.get("/api/pipeline/status/{run_id}")
 async def get_pipeline_status(run_id: str):
     """Get the status of a pipeline run"""
     # Check pipeline task status first
@@ -393,6 +432,161 @@ async def get_data():
 
         except Exception as e:
             print(f"Error fetching data: {e}")
+            raise HTTPException(
+                status_code=500, detail="Internal server error")
+
+    raise HTTPException(status_code=500, detail="Database connection failed")
+
+
+@app.get("/api/jobs/{run_id}")
+async def get_jobs(run_id: str):
+    """Get all jobs for a specific pipeline run"""
+    conn = get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+            cursor.execute("""
+                SELECT * FROM jobs 
+                WHERE run_id = %s 
+                ORDER BY created_at DESC
+            """, (run_id,))
+
+            results = cursor.fetchall()
+            cursor.close()
+            conn.close()
+
+            # Convert to list of dictionaries
+            jobs = []
+            for row in results:
+                job = dict(row)
+                jobs.append(job)
+
+            return {
+                "run_id": run_id,
+                "jobs_count": len(jobs),
+                "jobs": jobs
+            }
+
+        except Exception as e:
+            print(f"Error fetching jobs: {e}")
+            raise HTTPException(
+                status_code=500, detail="Internal server error")
+
+    raise HTTPException(status_code=500, detail="Database connection failed")
+
+
+@app.get("/api/jobs")
+async def get_all_jobs():
+    """Get all jobs from all pipeline runs"""
+    conn = get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+            cursor.execute("""
+                SELECT j.*, t.created_at as pipeline_created_at
+                FROM jobs j
+                JOIN tasks t ON j.run_id = t.run_id
+                ORDER BY j.created_at DESC
+            """)
+
+            results = cursor.fetchall()
+            cursor.close()
+            conn.close()
+
+            # Convert to list of dictionaries
+            jobs = []
+            for row in results:
+                job = dict(row)
+                jobs.append(job)
+
+            return {
+                "total_jobs": len(jobs),
+                "jobs": jobs
+            }
+
+        except Exception as e:
+            print(f"Error fetching all jobs: {e}")
+            raise HTTPException(
+                status_code=500, detail="Internal server error")
+
+    raise HTTPException(status_code=500, detail="Database connection failed")
+
+
+@app.get("/api/processed-jobs/{run_id}")
+async def get_processed_jobs(run_id: str):
+    """Get all AI-processed jobs for a specific pipeline run"""
+    conn = get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+            cursor.execute("""
+                SELECT pj.*, j.job_title, j.employer, j.job_location
+                FROM processed_jobs pj
+                JOIN jobs j ON pj.job_id = j.id
+                WHERE pj.run_id = %s 
+                ORDER BY pj.created_at DESC
+            """, (run_id,))
+
+            results = cursor.fetchall()
+            cursor.close()
+            conn.close()
+
+            # Convert to list of dictionaries
+            processed_jobs = []
+            for row in results:
+                job = dict(row)
+                processed_jobs.append(job)
+
+            return {
+                "run_id": run_id,
+                "processed_jobs_count": len(processed_jobs),
+                "processed_jobs": processed_jobs
+            }
+
+        except Exception as e:
+            print(f"Error fetching processed jobs: {e}")
+            raise HTTPException(
+                status_code=500, detail="Internal server error")
+
+    raise HTTPException(status_code=500, detail="Database connection failed")
+
+
+@app.get("/api/processed-jobs")
+async def get_all_processed_jobs():
+    """Get all AI-processed jobs from all pipeline runs"""
+    conn = get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+            cursor.execute("""
+                SELECT pj.*, j.job_title, j.employer, j.job_location, t.created_at as pipeline_created_at
+                FROM processed_jobs pj
+                JOIN jobs j ON pj.job_id = j.id
+                JOIN tasks t ON pj.run_id = t.run_id
+                ORDER BY pj.created_at DESC
+            """)
+
+            results = cursor.fetchall()
+            cursor.close()
+            conn.close()
+
+            # Convert to list of dictionaries
+            processed_jobs = []
+            for row in results:
+                job = dict(row)
+                processed_jobs.append(job)
+
+            return {
+                "total_processed_jobs": len(processed_jobs),
+                "processed_jobs": processed_jobs
+            }
+
+        except Exception as e:
+            print(f"Error fetching all processed jobs: {e}")
             raise HTTPException(
                 status_code=500, detail="Internal server error")
 

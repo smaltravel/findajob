@@ -1,9 +1,23 @@
 version: '3.8'
 
 services:
+  # Redis for Celery broker and result backend
+  redis:
+    image: redis:7-alpine
+    container_name: findajob_redis
+    ports:
+      - "6379:6379"
+    networks:
+      - findajob_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   # PostgreSQL Database
   postgres:
-    image: postgres:15
+    image: postgres:15-alpine
     container_name: findajob_postgres
     environment:
       POSTGRES_DB: findajob
@@ -17,8 +31,8 @@ services:
       - findajob_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
+      interval: 1s
+      timeout: 1s
       retries: 5
 
   # FastAPI Backend
@@ -33,50 +47,64 @@ services:
       - DB_USER=postgres
       - DB_PASSWORD=password
       - DB_PORT=5432
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - findajob_network
+    volumes:
+      - ../scrapy:/workspace/scrapy
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
-  # Docker Service 1 - Generate Random Values
-  docker_service_1:
+  # Celery Worker for processing tasks
+  celery_worker:
     build: ./backend
-    container_name: findajob_service_1
+    container_name: findajob_celery_worker
     environment:
       - DB_HOST=postgres
       - DB_DB=findajob
       - DB_USER=postgres
       - DB_PASSWORD=password
       - DB_PORT=5432
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - findajob_network
-    command: python docker_service_1.py
-    profiles:
-      - pipeline
+    volumes:
+      - ../scrapy:/workspace/scrapy
+    command: celery -A celery_app worker --loglevel=info --concurrency=2
+    restart: unless-stopped
 
-  # Docker Service 2 - Generate Passwords
-  docker_service_2:
+  # Celery Beat for scheduled tasks (optional)
+  celery_beat:
     build: ./backend
-    container_name: findajob_service_2
+    container_name: findajob_celery_beat
     environment:
       - DB_HOST=postgres
       - DB_DB=findajob
       - DB_USER=postgres
       - DB_PASSWORD=password
       - DB_PORT=5432
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - findajob_network
-    command: python docker_service_2.py
-    profiles:
-      - pipeline
+    command: celery -A celery_app beat --loglevel=info
+    restart: unless-stopped
 
   # Nginx for serving frontend
   nginx:
