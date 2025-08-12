@@ -1,0 +1,100 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    container_name: findajob_postgres
+    environment:
+      POSTGRES_DB: findajob
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - findajob_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI Backend
+  backend:
+    build: ./backend
+    container_name: findajob_backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DB_HOST=postgres
+      - DB_DB=findajob
+      - DB_USER=postgres
+      - DB_PASSWORD=password
+      - DB_PORT=5432
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - findajob_network
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Docker Service 1 - Generate Random Values
+  docker_service_1:
+    build: ./backend
+    container_name: findajob_service_1
+    environment:
+      - DB_HOST=postgres
+      - DB_DB=findajob
+      - DB_USER=postgres
+      - DB_PASSWORD=password
+      - DB_PORT=5432
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - findajob_network
+    command: python docker_service_1.py
+    profiles:
+      - pipeline
+
+  # Docker Service 2 - Generate Passwords
+  docker_service_2:
+    build: ./backend
+    container_name: findajob_service_2
+    environment:
+      - DB_HOST=postgres
+      - DB_DB=findajob
+      - DB_USER=postgres
+      - DB_PASSWORD=password
+      - DB_PORT=5432
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - findajob_network
+    command: python docker_service_2.py
+    profiles:
+      - pipeline
+
+  # Nginx for serving frontend
+  nginx:
+    image: nginx:alpine
+    container_name: findajob_nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html
+      - ./nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - backend
+    networks:
+      - findajob_network
+
+volumes:
+  postgres_data:
+
+networks:
+  findajob_network:
+    driver: bridge

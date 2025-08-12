@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FindAJob Pipeline</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #00d4ff, #ff6b6b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.8;
+        }
+
+        .controls {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 40px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 15px 30px;
+            font-size: 1.1rem;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #00d4ff, #0099cc);
+            color: white;
+            box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 212, 255, 0.4);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a52);
+            color: white;
+            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 107, 107, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .status-text {
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 15px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(45deg, #00d4ff, #ff6b6b);
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 4px;
+        }
+
+        .data-section {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 30px;
+            margin-bottom: 30px;
+        }
+
+        .data-section h2 {
+            margin-bottom: 20px;
+            color: #00d4ff;
+            font-size: 1.8rem;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .data-table th,
+        .data-table td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .data-table th {
+            background: rgba(0, 212, 255, 0.2);
+            font-weight: 600;
+            color: #00d4ff;
+        }
+
+        .data-table tr:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .run-id {
+            font-family: monospace;
+            font-size: 0.9rem;
+            color: #ff6b6b;
+        }
+
+        .password {
+            font-family: monospace;
+            font-size: 1.1rem;
+            color: #00ff88;
+            font-weight: bold;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #00d4ff;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: rgba(255, 107, 107, 0.2);
+            border: 1px solid rgba(255, 107, 107, 0.5);
+            color: #ff6b6b;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        .success {
+            background: rgba(0, 255, 136, 0.2);
+            border: 1px solid rgba(0, 255, 136, 0.5);
+            color: #00ff88;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        @media (max-width: 768px) {
+            .controls {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .btn {
+                width: 100%;
+                max-width: 300px;
+            }
+            
+            .data-table {
+                font-size: 0.9rem;
+            }
+            
+            .data-table th,
+            .data-table td {
+                padding: 10px 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔐 FindAJob Pipeline</h1>
+            <p>Generate random passwords through our automated pipeline</p>
+        </div>
+
+        <div class="controls">
+            <button id="runPipelineBtn" class="btn btn-primary">
+                🚀 Run Pipeline
+            </button>
+            <button id="refreshDataBtn" class="btn btn-secondary">
+                🔄 Refresh Data
+            </button>
+        </div>
+
+        <div id="statusSection" class="status" style="display: none;">
+            <div class="status-text" id="statusText">Initializing pipeline...</div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+        </div>
+
+        <div id="messageSection"></div>
+
+        <div class="data-section">
+            <h2>📊 Pipeline Results</h2>
+            <div id="dataTable">
+                <p style="text-align: center; opacity: 0.7;">No data available yet. Run the pipeline to get started!</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class PipelineManager {
+            constructor() {
+                this.apiBase = '/api';
+                this.currentRunId = null;
+                this.statusCheckInterval = null;
+                this.init();
+            }
+
+            init() {
+                document.getElementById('runPipelineBtn').addEventListener('click', () => this.runPipeline());
+                document.getElementById('refreshDataBtn').addEventListener('click', () => this.refreshData());
+                this.refreshData();
+            }
+
+            async runPipeline() {
+                try {
+                    this.showStatus('Starting pipeline...', 0);
+                    this.disableButton('runPipelineBtn', true);
+                    
+                    const response = await fetch(`${this.apiBase}/pipeline`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    this.currentRunId = data.run_id;
+                    
+                    this.showStatus('Pipeline started! Processing...', 25);
+                    this.showMessage('Pipeline started successfully!', 'success');
+                    
+                    // Start monitoring the pipeline
+                    this.monitorPipeline(data.run_id);
+                    
+                } catch (error) {
+                    console.error('Error starting pipeline:', error);
+                    this.showMessage(`Error starting pipeline: ${error.message}`, 'error');
+                    this.hideStatus();
+                    this.disableButton('runPipelineBtn', false);
+                }
+            }
+
+            async monitorPipeline(runId) {
+                this.statusCheckInterval = setInterval(async () => {
+                    try {
+                        const response = await fetch(`${this.apiBase}/pipeline/status/${runId}`);
+                        
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+
+                        const data = await response.json();
+                        
+                        if (data.status === 'completed') {
+                            this.showStatus('Pipeline completed!', 100);
+                            this.showMessage('Pipeline completed successfully!', 'success');
+                            this.hideStatus();
+                            this.disableButton('runPipelineBtn', false);
+                            clearInterval(this.statusCheckInterval);
+                            
+                            // Refresh data to show new results
+                            setTimeout(() => this.refreshData(), 1000);
+                        } else if (data.status === 'processing') {
+                            if (data.random_value) {
+                                this.showStatus(`Processing: Random value ${data.random_value} generated`, 75);
+                            } else {
+                                this.showStatus('Processing: Generating random value...', 50);
+                            }
+                        }
+                        
+                    } catch (error) {
+                        console.error('Error checking pipeline status:', error);
+                        this.showMessage(`Error checking pipeline status: ${error.message}`, 'error');
+                        this.hideStatus();
+                        this.disableButton('runPipelineBtn', false);
+                        clearInterval(this.statusCheckInterval);
+                    }
+                }, 2000);
+            }
+
+            async refreshData() {
+                try {
+                    const response = await fetch(`${this.apiBase}/data`);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    this.displayData(data);
+                    
+                } catch (error) {
+                    console.error('Error fetching data:', error);
+                    this.showMessage(`Error fetching data: ${error.message}`, 'error');
+                }
+            }
+
+            displayData(data) {
+                const dataTable = document.getElementById('dataTable');
+                
+                if (!data || data.length === 0) {
+                    dataTable.innerHTML = '<p style="text-align: center; opacity: 0.7;">No data available yet. Run the pipeline to get started!</p>';
+                    return;
+                }
+
+                let tableHTML = `
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Run ID</th>
+                                <th>Random Value</th>
+                                <th>Generated Password</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+                data.forEach(item => {
+                    const passwordDisplay = item.password === 'Not generated yet' 
+                        ? '<span style="opacity: 0.5;">⏳ Processing...</span>'
+                        : `<span class="password">${item.password}</span>`;
+                    
+                    tableHTML += `
+                        <tr>
+                            <td class="run-id">${item.run_id}</td>
+                            <td>${item.random_value || '⏳'}</td>
+                            <td>${passwordDisplay}</td>
+                        </tr>
+                    `;
+                });
+
+                tableHTML += '</tbody></table>';
+                dataTable.innerHTML = tableHTML;
+            }
+
+            showStatus(text, progress) {
+                document.getElementById('statusSection').style.display = 'block';
+                document.getElementById('statusText').textContent = text;
+                document.getElementById('progressFill').style.width = `${progress}%`;
+            }
+
+            hideStatus() {
+                document.getElementById('statusSection').style.display = 'none';
+            }
+
+            showMessage(text, type) {
+                const messageSection = document.getElementById('messageSection');
+                const messageDiv = document.createElement('div');
+                messageDiv.className = type;
+                messageDiv.textContent = text;
+                
+                messageSection.appendChild(messageDiv);
+                
+                // Auto-remove message after 5 seconds
+                setTimeout(() => {
+                    if (messageDiv.parentNode) {
+                        messageDiv.parentNode.removeChild(messageDiv);
+                    }
+                }, 5000);
+            }
+
+            disableButton(buttonId, disabled) {
+                const button = document.getElementById(buttonId);
+                button.disabled = disabled;
+                if (disabled) {
+                    button.innerHTML = '<span class="loading"></span> Processing...';
+                } else {
+                    button.innerHTML = buttonId === 'runPipelineBtn' ? '🚀 Run Pipeline' : '🔄 Refresh Data';
+                }
+            }
+        }
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', () => {
+            new PipelineManager();
+        });
+    </script>
+</body>
+</html>
