@@ -117,6 +117,11 @@ def init_database():
         try:
             cursor = conn.cursor()
 
+            # Drop existing tables to recreate with correct schema
+            cursor.execute("DROP TABLE IF EXISTS processed_jobs CASCADE")
+            cursor.execute("DROP TABLE IF EXISTS jobs CASCADE")
+            cursor.execute("DROP TABLE IF EXISTS tasks CASCADE")
+
             # Create tasks table first (referenced by other tables)
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS tasks (
@@ -132,19 +137,22 @@ def init_database():
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS jobs (
                     id SERIAL PRIMARY KEY,
-                    run_id VARCHAR(255) REFERENCES tasks(run_id),
-                    job_id VARCHAR(255),
+                    spider_source VARCHAR(255) NOT NULL,
+                    job_id VARCHAR(255) UNIQUE,
                     job_title TEXT,
-                    employer TEXT,
                     job_location TEXT,
-                    job_description TEXT,
-                    employment_type TEXT,
-                    job_function TEXT,
-                    seniority_level TEXT,
                     job_url TEXT,
+                    job_description TEXT,
+                    employer VARCHAR(255),
                     employer_url TEXT,
+                    employment_type VARCHAR(100),
+                    job_function VARCHAR(255),
+                    seniority_level VARCHAR(100),
                     industries TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    run_id VARCHAR(255) REFERENCES tasks(run_id),
+                    status VARCHAR(50) NOT NULL DEFAULT 'new',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
 
@@ -166,6 +174,21 @@ def init_database():
             # Create indexes for better performance
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_jobs_run_id ON jobs(run_id)
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_job_id ON jobs(job_id)
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_status ON jobs(status)
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_created_at ON jobs(created_at)
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_job_title ON jobs(job_title)
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_employer ON jobs(employer)
             """)
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_processed_jobs_job_id ON processed_jobs(job_id)

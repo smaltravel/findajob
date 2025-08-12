@@ -114,7 +114,7 @@ class PostgresqlPipeline:
                     job_function VARCHAR(255),
                     seniority_level VARCHAR(100),
                     industries TEXT,
-                    runid VARCHAR(255),
+                    run_id VARCHAR(255) REFERENCES tasks(run_id),
                     status VARCHAR(50) NOT NULL DEFAULT 'new',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -138,7 +138,7 @@ class PostgresqlPipeline:
                 CREATE INDEX IF NOT EXISTS idx_employer ON jobs(employer)
             ''')
             self.cursor.execute('''
-                CREATE INDEX IF NOT EXISTS idx_runid ON jobs(runid)
+                CREATE INDEX IF NOT EXISTS idx_run_id ON jobs(run_id)
             ''')
 
             self.conn.commit()
@@ -179,7 +179,7 @@ class PostgresqlPipeline:
                     job_function,
                     seniority_level,
                     industries,
-                    runid
+                    run_id
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ''', (
                 spider.name,
@@ -194,13 +194,13 @@ class PostgresqlPipeline:
                 adapter['job_function'],
                 adapter['seniority_level'],
                 adapter['industries'],
-                adapter.get('runid', '')
+                adapter.get('run_id', '')
             ))
 
             self.conn.commit()
 
             spider.logger.info(
-                f"Inserted job: {adapter['job_title']} at {adapter['employer']} with runid: {adapter.get('runid', 'N/A')}")
+                f"Inserted job: {adapter['job_title']} at {adapter['employer']} with run_id: {adapter.get('run_id', 'N/A')}")
             return item
 
         except psycopg2.Error as e:

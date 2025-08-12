@@ -231,7 +231,7 @@ def crawl_jobs(self, run_id: str, keywords: str = "python developer", location: 
             "scrapy", "crawl", "linkedin",
             "-a", f"keywords={keywords}",
             "-a", f"location={location}",
-            "-a", f"runid={run_id}",
+            "-a", f"run_id={run_id}",
             "-a", f"max_jobs={max_jobs}",
             "-a", f"seniority={seniority}",
         ]
