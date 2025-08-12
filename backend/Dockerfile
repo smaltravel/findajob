@@ -5,14 +5,17 @@ FROM base AS builder
 WORKDIR /app
 
 COPY requirements.txt .
-RUN python -m venv /opt/venv
-RUN . /app/venv/bin/activate &&pip install --no-cache-dir -r requirements.txt
+COPY entrypoint.sh .
+RUN python -m venv /app/venv
+RUN . /app/venv/bin/activate && pip install --no-cache-dir -r requirements.txt
+RUN chmod +x entrypoint.sh
 
 FROM base AS runner
 
 WORKDIR /app
 
-COPY --from=builder /opt/venv /opt/venv
+COPY --from=builder /app/venv /app/venv
+COPY --from=builder /app/entrypoint.sh /app/entrypoint.sh
 
 # Copy application code
 COPY . .
@@ -20,9 +23,9 @@ COPY . .
 # Expose port
 EXPOSE 8000
 
-ENV PATH="/opt/venv/bin:$PATH"
+ENV PATH="/app/venv/bin:$PATH"
 
-ENTRYPOINT [ ".", "/app/venv/bin/activate" ]
+ENTRYPOINT [ "./entrypoint.sh" ]
 
 # Command to run the application
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
