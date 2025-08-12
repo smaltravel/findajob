@@ -179,21 +179,6 @@
             font-weight: bold;
         }
 
-        .status-pending {
-            color: #ffaa00;
-            font-weight: 600;
-        }
-
-        .status-processing {
-            color: #00d4ff;
-            font-weight: 600;
-        }
-
-        .status-completed {
-            color: #00ff88;
-            font-weight: 600;
-        }
-
         .loading {
             display: inline-block;
             width: 20px;
@@ -252,7 +237,7 @@
     <div class="container">
         <div class="header">
             <h1>🔐 FindAJob Pipeline</h1>
-            <p>Generate random passwords through our automated pipeline</p>
+            <p>Generate random passwords through our automated Celery pipeline</p>
         </div>
 
         <div class="controls">
@@ -281,9 +266,9 @@
         </div>
 
         <div class="data-section">
-            <h2>🔄 Task Queue Status</h2>
-            <div id="queueTable">
-                <p style="text-align: center; opacity: 0.7;">Loading queue status...</p>
+            <h2>🔄 Celery Task Status</h2>
+            <div id="taskStatusTable">
+                <p style="text-align: center; opacity: 0.7;">No active tasks</p>
             </div>
         </div>
     </div>
@@ -301,10 +286,9 @@
                 document.getElementById('runPipelineBtn').addEventListener('click', () => this.runPipeline());
                 document.getElementById('refreshDataBtn').addEventListener('click', () => this.refreshData());
                 this.refreshData();
-                this.refreshQueueStatus();
                 
-                // Refresh queue status every 3 seconds
-                setInterval(() => this.refreshQueueStatus(), 3000);
+                // Refresh data every 5 seconds
+                setInterval(() => this.refreshData(), 5000);
             }
 
             async runPipeline() {
@@ -395,23 +379,6 @@
                 }
             }
 
-            async refreshQueueStatus() {
-                try {
-                    const response = await fetch(`${this.apiBase}/queue/status`);
-                    
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-
-                    const data = await response.json();
-                    this.displayQueueStatus(data);
-                    
-                } catch (error) {
-                    console.error('Error fetching queue status:', error);
-                    // Don't show error for queue status as it's background refresh
-                }
-            }
-
             displayData(data) {
                 const dataTable = document.getElementById('dataTable');
                 
@@ -448,65 +415,6 @@
 
                 tableHTML += '</tbody></table>';
                 dataTable.innerHTML = tableHTML;
-            }
-
-            displayQueueStatus(data) {
-                const queueTable = document.getElementById('queueTable');
-                
-                if (!data || data.length === 0) {
-                    queueTable.innerHTML = '<p style="text-align: center; opacity: 0.7;">No tasks in queue</p>';
-                    return;
-                }
-
-                let tableHTML = `
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Task ID</th>
-                                <th>Run ID</th>
-                                <th>Service</th>
-                                <th>Status</th>
-                                <th>Created</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                `;
-
-                data.forEach(item => {
-                    const statusClass = this.getStatusClass(item.status);
-                    const statusIcon = this.getStatusIcon(item.status);
-                    
-                    tableHTML += `
-                        <tr>
-                            <td>${item.id}</td>
-                            <td class="run-id">${item.run_id.substring(0, 8)}...</td>
-                            <td>${item.service_name}</td>
-                            <td><span class="${statusClass}">${statusIcon} ${item.status}</span></td>
-                            <td>${new Date(item.created_at).toLocaleTimeString()}</td>
-                        </tr>
-                    `;
-                });
-
-                tableHTML += '</tbody></table>';
-                queueTable.innerHTML = tableHTML;
-            }
-
-            getStatusClass(status) {
-                switch (status) {
-                    case 'pending': return 'status-pending';
-                    case 'processing': return 'status-processing';
-                    case 'completed': return 'status-completed';
-                    default: return '';
-                }
-            }
-
-            getStatusIcon(status) {
-                switch (status) {
-                    case 'pending': return '⏳';
-                    case 'processing': return '🔄';
-                    case 'completed': return '✅';
-                    default: return '❓';
-                }
             }
 
             showStatus(text, progress) {
