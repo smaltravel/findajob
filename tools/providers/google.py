@@ -1,5 +1,5 @@
 from .interface import AIProvider, AIProviderConfig, AIProviderError
-from google import genai
+import google.generativeai as genai
 from pydantic import BaseModel
 import json
 import logging
