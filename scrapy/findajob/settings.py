@@ -61,7 +61,7 @@ DOWNLOAD_DELAY = 1
 ITEM_PIPELINES = {
     # 'findajob.pipelines.LinkedInJobPipeline': 300,
     # 'findajob.pipelines.SaveToFilePipeline': 500,
-    'findajob.pipelines.DatabasePipeline': 300,
+    'findajob.pipelines.PostgresqlPipeline': 300,
 }
 
 # Enable and configure the AutoThrottle extension (disabled by default)
@@ -88,8 +88,13 @@ ITEM_PIPELINES = {
 # Set settings whose default value is deprecated to a future-proof value
 FEED_EXPORT_ENCODING = "utf-8"
 
-# Database settings
-DATABASE_PATH = "../webapp/jobs.db"
+# PostgreSQL Database settings
+# These values match the docker-compose.yml configuration
+POSTGRES_HOST = 'postgres'
+POSTGRES_DB = 'findajob'
+POSTGRES_USER = 'postgres'
+POSTGRES_PASSWORD = 'password'
+POSTGRES_PORT = '5432'
 
 DOWNLOAD_HANDLERS = {
     "http": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",

@@ -9,7 +9,7 @@ from itemadapter import ItemAdapter
 from w3lib.html import remove_tags
 import re
 import json
-import sqlite3
+import psycopg2
 import datetime
 import os
 
@@ -63,130 +63,157 @@ class LinkedInJobPipeline:
         return item
 
 
-class DatabasePipeline:
-    """Pipeline to store processed job items in a database."""
+class PostgresqlPipeline:
+    """Pipeline to store processed job items in a PostgreSQL database."""
 
-    def __init__(self, database_path=None):
-        # Use the database path from settings or default to webapp/jobs.db
-        if database_path is None:
-            from scrapy.utils.project import get_project_settings
-            settings = get_project_settings()
-            database_path = settings.get('DATABASE_PATH', 'webapp/jobs.db')
+    def __init__(self, db_host=None, db_name=None, db_user=None, db_password=None, db_port=None):
+        # Get database connection parameters from settings or use defaults
+        from scrapy.utils.project import get_project_settings
+        settings = get_project_settings()
 
-        # Ensure the directory exists
-        db_dir = os.path.dirname(database_path)
-        if db_dir:
-            os.makedirs(db_dir, exist_ok=True)
+        self.db_host = db_host or settings.get('POSTGRES_HOST', 'postgres')
+        self.db_name = db_name or settings.get('POSTGRES_DB', 'findajob')
+        self.db_user = db_user or settings.get('POSTGRES_USER', 'postgres')
+        self.db_password = db_password or settings.get(
+            'POSTGRES_PASSWORD', 'password')
+        self.db_port = db_port or settings.get('POSTGRES_PORT', '5432')
 
-        self.conn = sqlite3.connect(database_path)
-        self.cursor = self.conn.cursor()
+        self.conn = None
+        self.cursor = None
 
-        # Create table if it doesn't exist
-        self.create_table_if_not_exists()
+    def connect(self):
+        """Establish connection to PostgreSQL database."""
+        try:
+            self.conn = psycopg2.connect(
+                host=self.db_host,
+                database=self.db_name,
+                user=self.db_user,
+                password=self.db_password,
+                port=self.db_port
+            )
+            self.cursor = self.conn.cursor()
+            self.conn.autocommit = False
+        except psycopg2.Error as e:
+            raise Exception(f"Failed to connect to PostgreSQL: {e}")
 
     def create_table_if_not_exists(self):
         """Create the 'jobs' table if it doesn't exist."""
-        self.cursor.execute('''
-            CREATE TABLE IF NOT EXISTS jobs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                spider_source TEXT NOT NULL,
-                job_id TEXT UNIQUE,
-                job_title TEXT,
-                job_location TEXT,
-                job_url TEXT,
-                job_description TEXT,
-                employer TEXT,
-                employer_url TEXT,
-                employment_type TEXT,
-                job_function TEXT,
-                seniority_level TEXT,
-                industries TEXT,
-                runid TEXT,
-                status TEXT NOT NULL DEFAULT 'new',
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
+        try:
+            self.cursor.execute('''
+                CREATE TABLE IF NOT EXISTS jobs (
+                    id SERIAL PRIMARY KEY,
+                    spider_source VARCHAR(255) NOT NULL,
+                    job_id VARCHAR(255) UNIQUE,
+                    job_title TEXT,
+                    job_location TEXT,
+                    job_url TEXT,
+                    job_description TEXT,
+                    employer VARCHAR(255),
+                    employer_url TEXT,
+                    employment_type VARCHAR(100),
+                    job_function VARCHAR(255),
+                    seniority_level VARCHAR(100),
+                    industries TEXT,
+                    runid VARCHAR(255),
+                    status VARCHAR(50) NOT NULL DEFAULT 'new',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
 
-        # Create index for better query performance
-        self.cursor.execute('''
-            CREATE INDEX IF NOT EXISTS idx_job_id ON jobs(job_id)
-        ''')
-        self.cursor.execute('''
-            CREATE INDEX IF NOT EXISTS idx_status ON jobs(status)
-        ''')
-        self.cursor.execute('''
-            CREATE INDEX IF NOT EXISTS idx_created_at ON jobs(created_at)
-        ''')
-        self.cursor.execute('''
-            CREATE INDEX IF NOT EXISTS idx_job_title ON jobs(job_title)
-        ''')
-        self.cursor.execute('''
-            CREATE INDEX IF NOT EXISTS idx_employer ON jobs(employer)
-        ''')
-        self.cursor.execute('''
-            CREATE INDEX IF NOT EXISTS idx_runid ON jobs(runid)
-        ''')
+            # Create index for better query performance
+            self.cursor.execute('''
+                CREATE INDEX IF NOT EXISTS idx_job_id ON jobs(job_id)
+            ''')
+            self.cursor.execute('''
+                CREATE INDEX IF NOT EXISTS idx_status ON jobs(status)
+            ''')
+            self.cursor.execute('''
+                CREATE INDEX IF NOT EXISTS idx_created_at ON jobs(created_at)
+            ''')
+            self.cursor.execute('''
+                CREATE INDEX IF NOT EXISTS idx_job_title ON jobs(job_title)
+            ''')
+            self.cursor.execute('''
+                CREATE INDEX IF NOT EXISTS idx_employer ON jobs(employer)
+            ''')
+            self.cursor.execute('''
+                CREATE INDEX IF NOT EXISTS idx_runid ON jobs(runid)
+            ''')
 
-        self.conn.commit()
+            self.conn.commit()
+        except psycopg2.Error as e:
+            self.conn.rollback()
+            raise Exception(f"Failed to create table: {e}")
 
     def open_spider(self, spider):
-        # Perform initialization tasks at the start of the spider.
-        # Ensure the table is created when the spider opens
+        """Perform initialization tasks at the start of the spider."""
+        self.connect()
         self.create_table_if_not_exists()
 
     def process_item(self, item, spider):
         adapter = ItemAdapter(item)
         now = datetime.datetime.now().replace(microsecond=0).isoformat()
 
-        # Check if the item already exists in the database
-        self.cursor.execute(
-            'SELECT 1 FROM jobs WHERE job_id=?', (adapter['job_id'],))
-        if self.cursor.fetchone():
+        try:
+            # Check if the item already exists in the database
+            self.cursor.execute(
+                'SELECT 1 FROM jobs WHERE job_id = %s', (adapter['job_id'],))
+            if self.cursor.fetchone():
+                spider.logger.info(
+                    f"Item with job_id {adapter['job_id']} already exists. Skipping insertion.")
+                return item
+
+            # Insert new job
+            self.cursor.execute('''
+                INSERT INTO jobs (
+                    spider_source,
+                    job_id,
+                    job_title,
+                    job_location,
+                    job_url,
+                    job_description,
+                    employer,
+                    employer_url,
+                    employment_type,
+                    job_function,
+                    seniority_level,
+                    industries,
+                    runid
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ''', (
+                spider.name,
+                adapter['job_id'],
+                adapter['job_title'],
+                adapter['job_location'],
+                adapter['job_url'],
+                adapter['job_description'],
+                adapter['employer'],
+                adapter['employer_url'],
+                adapter['employment_type'],
+                adapter['job_function'],
+                adapter['seniority_level'],
+                adapter['industries'],
+                adapter.get('runid', '')
+            ))
+
+            self.conn.commit()
+
             spider.logger.info(
-                f"Item with job_id {adapter['job_id']} already exists. Skipping insertion.")
+                f"Inserted job: {adapter['job_title']} at {adapter['employer']} with runid: {adapter.get('runid', 'N/A')}")
             return item
 
-        values = (
-            spider.name,
-            adapter['job_id'],
-            adapter['job_title'],
-            adapter['job_location'],
-            adapter['job_url'],
-            adapter['job_description'],
-            adapter['employer'],
-            adapter['employer_url'],
-            adapter['employment_type'],
-            adapter['job_function'],
-            adapter['seniority_level'],
-            adapter['industries'],
-            # Get runid from item, default to empty string
-            adapter.get('runid', ''),
-        )
-        self.cursor.execute('''
-            INSERT INTO jobs (
-                spider_source,
-                job_id,
-                job_title,
-                job_location,
-                job_url,
-                job_description,
-                employer,
-                employer_url,
-                employment_type,
-                job_function,
-                seniority_level,
-                industries,
-                runid)
-        ''' + str(' VALUES (%s)' % (', '.join(['?' for _ in values]))), values)
-        self.conn.commit()
-
-        spider.logger.info(
-            f"Inserted job: {adapter['job_title']} at {adapter['employer']} with runid: {adapter.get('runid', 'N/A')}")
-        return item
+        except psycopg2.Error as e:
+            self.conn.rollback()
+            spider.logger.error(f"Database error: {e}")
+            raise e
 
     def close_spider(self, spider):
-        self.conn.close()
+        """Close database connection when spider finishes."""
+        if self.cursor:
+            self.cursor.close()
+        if self.conn:
+            self.conn.close()
 
 
 class SaveToFilePipeline:
