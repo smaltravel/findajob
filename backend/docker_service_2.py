@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Docker Service 2: Reads random value and generates password of corresponding length
+Docker Service 2: Polls task queue and generates passwords
 """
 import psycopg2
 import random
 import string
-import sys
-import os
 import time
+import os
+import sys
 
 # Database configuration
 DB_CONFIG = {
@@ -29,7 +29,77 @@ def get_db_connection():
         return None
 
 
-def get_random_value(run_id):
+def get_pending_task():
+    """Get a pending task from the queue for service_2"""
+    conn = get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+
+            # Get the oldest pending task for service_2
+            cursor.execute("""
+                SELECT id, run_id FROM task_queue 
+                WHERE service_name = 'service_2' AND status = 'pending'
+                ORDER BY created_at ASC
+                LIMIT 1
+                FOR UPDATE SKIP LOCKED
+            """)
+
+            result = cursor.fetchone()
+            cursor.close()
+            conn.close()
+
+            if result:
+                return {"id": result[0], "run_id": result[1]}
+            return None
+
+        except Exception as e:
+            print(f"Error getting pending task: {e}")
+            return None
+    return None
+
+
+def mark_task_started(task_id: int):
+    """Mark a task as started"""
+    conn = get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE task_queue SET status = 'processing', started_at = CURRENT_TIMESTAMP WHERE id = %s",
+                (task_id,)
+            )
+            conn.commit()
+            cursor.close()
+            conn.close()
+            return True
+        except Exception as e:
+            print(f"Error marking task as started: {e}")
+            return False
+    return False
+
+
+def mark_task_completed(task_id: int):
+    """Mark a task as completed"""
+    conn = get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE task_queue SET status = 'completed', completed_at = CURRENT_TIMESTAMP WHERE id = %s",
+                (task_id,)
+            )
+            conn.commit()
+            cursor.close()
+            conn.close()
+            return True
+        except Exception as e:
+            print(f"Error marking task as completed: {e}")
+            return False
+    return False
+
+
+def get_random_value(run_id: str):
     """Get the random value for a given run_id"""
     conn = get_db_connection()
     if conn:
@@ -64,7 +134,7 @@ def generate_password(length):
     return password
 
 
-def store_password(run_id, random_value, password):
+def store_password(run_id: str, random_value: int, password: str):
     """Store the generated password in the database"""
     conn = get_db_connection()
     if conn:
@@ -87,9 +157,13 @@ def store_password(run_id, random_value, password):
         return False
 
 
-def process_task(run_id):
+def process_task(task_id: int, run_id: str):
     """Process the task by reading random value and generating password"""
-    print(f"Processing task for run_id: {run_id}")
+    print(f"Processing task {task_id} for run_id: {run_id}")
+
+    # Mark task as started
+    if not mark_task_started(task_id):
+        return False
 
     # Get the random value
     random_value = get_random_value(run_id)
@@ -105,30 +179,48 @@ def process_task(run_id):
     # Store password in database
     success = store_password(run_id, random_value, password)
 
+    if success:
+        # Mark task as completed
+        mark_task_completed(task_id)
+        print(f"🎉 Pipeline completed for run_id: {run_id}!")
+        print(f"📧 User should be notified that pipeline is complete")
+
     return success
 
 
 def main():
-    """Main function"""
-    if len(sys.argv) != 2:
-        print("Usage: python docker_service_2.py <run_id>")
-        sys.exit(1)
+    """Main function - continuously poll for tasks"""
+    print("🔐 Starting Docker Service 2 (Password Generator)")
+    print("📊 Polling task queue for new tasks...")
 
-    run_id = sys.argv[1]
-    print(f"Starting Docker Service 2 for run_id: {run_id}")
+    while True:
+        try:
+            # Get pending task
+            task = get_pending_task()
 
-    # Simulate some processing time
-    time.sleep(2)
+            if task:
+                print(
+                    f"🎯 Found pending task: {task['id']} for run_id: {task['run_id']}")
 
-    # Process the task
-    success = process_task(run_id)
+                # Process the task
+                success = process_task(task['id'], task['run_id'])
 
-    if success:
-        print("Task completed successfully")
-        sys.exit(0)
-    else:
-        print("Task failed")
-        sys.exit(1)
+                if success:
+                    print(f"✅ Task {task['id']} completed successfully")
+                else:
+                    print(f"❌ Task {task['id']} failed")
+            else:
+                print("⏳ No pending tasks found, waiting...")
+
+            # Wait before next poll
+            time.sleep(5)
+
+        except KeyboardInterrupt:
+            print("\n🛑 Service 2 stopped by user")
+            break
+        except Exception as e:
+            print(f"❌ Unexpected error: {e}")
+            time.sleep(10)  # Wait longer on error
 
 
 if __name__ == "__main__":

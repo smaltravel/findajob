@@ -42,6 +42,14 @@ class TaskData(BaseModel):
     password: str
 
 
+class TaskQueueItem(BaseModel):
+    id: int
+    run_id: str
+    service_name: str
+    status: str
+    created_at: str
+
+
 def get_db_connection():
     """Create database connection"""
     try:
@@ -79,11 +87,46 @@ def init_database():
                 )
             """)
 
+            # Create task queue table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS task_queue (
+                    id SERIAL PRIMARY KEY,
+                    run_id VARCHAR(255) NOT NULL,
+                    service_name VARCHAR(50) NOT NULL,
+                    status VARCHAR(20) DEFAULT 'pending',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    started_at TIMESTAMP NULL,
+                    completed_at TIMESTAMP NULL
+                )
+            """)
+
             conn.commit()
             cursor.close()
             conn.close()
         except Exception as e:
             print(f"Database initialization error: {e}")
+
+
+def create_task_in_queue(run_id: str, service_name: str):
+    """Create a task in the queue for a specific service"""
+    conn = get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO task_queue (run_id, service_name) VALUES (%s, %s)",
+                (run_id, service_name)
+            )
+            conn.commit()
+            cursor.close()
+            conn.close()
+            print(
+                f"Created task in queue for {service_name} with run_id: {run_id}")
+            return True
+        except Exception as e:
+            print(f"Error creating task in queue: {e}")
+            return False
+    return False
 
 
 @app.on_event("startup")
@@ -117,8 +160,9 @@ async def run_pipeline():
         except Exception as e:
             print(f"Error creating task: {e}")
 
-    # In a real implementation, you would trigger Docker services here
-    # For now, we'll simulate the pipeline
+    # Create first task in queue for Service 1
+    create_task_in_queue(run_id, "service_1")
+
     webhook_url = f"/pipeline/status/{run_id}"
 
     return PipelineResponse(
@@ -209,7 +253,45 @@ async def get_data():
             raise HTTPException(
                 status_code=500, detail="Internal server error")
 
+    raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.get("/queue/status", response_model=List[TaskQueueItem])
+async def get_queue_status():
+    """Get the current status of all tasks in the queue"""
+    conn = get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            cursor.execute("""
+                SELECT id, run_id, service_name, status, created_at
+                FROM task_queue
+                ORDER BY created_at DESC
+            """)
+
+            results = cursor.fetchall()
+            cursor.close()
+            conn.close()
+
+            data = []
+            for row in results:
+                data.append(TaskQueueItem(
+                    id=row["id"],
+                    run_id=row["run_id"],
+                    service_name=row["service_name"],
+                    status=row["status"],
+                    created_at=str(row["created_at"])
+                ))
+
+            return data
+
+        except Exception as e:
+            print(f"Error fetching queue status: {e}")
+            raise HTTPException(
+                status_code=500, detail="Internal server error")
+
     raise HTTPException(status_code=500, detail="Database connection failed")
+
 
 if __name__ == "__main__":
     import uvicorn
