@@ -88,6 +88,20 @@
         }
         
         [x-cloak] { display: none !important; }
+        
+        .line-clamp-2 {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        
+        .line-clamp-3 {
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
     </style>
 </head>
 <body class="bg-gradient-to-br from-dark-950 via-dark-900 to-dark-800 min-h-screen text-gray-100">
@@ -257,7 +271,37 @@
 
                         <!-- AI Summary -->
                         <div class="mb-4">
-                            <p class="text-sm text-gray-300 line-clamp-3" x-text="getJobSummary(job) || 'No AI summary available yet.'"></p>
+                            <div x-show="getJobSummary(job)" class="space-y-2">
+                                <!-- Summary Text -->
+                                <p class="text-sm text-gray-300 line-clamp-2" x-text="getJobSummary(job)?.summary || 'No summary available'"></p>
+                                
+                                <!-- Background Alignment Indicator -->
+                                <div class="flex items-center justify-between">
+                                    <span class="text-xs text-gray-400">Match:</span>
+                                    <div class="flex items-center space-x-1">
+                                        <div class="flex space-x-1">
+                                            <template x-for="i in 5" :key="i">
+                                                <div class="w-2 h-2 rounded-full" 
+                                                     :class="i <= (getJobSummary(job)?.background_aligns || 0) ? 'bg-purple-500' : 'bg-gray-600'"></div>
+                                            </template>
+                                        </div>
+                                        <span class="text-xs text-gray-400 ml-1" x-text="(getJobSummary(job)?.background_aligns || 0) + '/5'"></span>
+                                    </div>
+                                </div>
+                                
+                                <!-- Cover Letter Indicator -->
+                                <div x-show="getCoverLetter(job)" class="flex items-center space-x-1">
+                                    <svg class="w-3 h-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                                    </svg>
+                                    <span class="text-xs text-blue-400">Cover letter ready</span>
+                                </div>
+                            </div>
+                            
+                            <!-- No AI Analysis -->
+                            <div x-show="!getJobSummary(job)" class="text-sm text-gray-500 italic">
+                                No AI analysis available yet.
+                            </div>
                         </div>
 
                         <!-- Job Details -->
@@ -397,11 +441,110 @@
                         </div>
                     </div>
 
-                    <!-- AI Summary -->
+                    <!-- AI Analysis -->
                     <div>
                         <h3 class="text-lg font-semibold text-white mb-3">AI Analysis</h3>
-                        <div class="bg-dark-700/50 border border-dark-600/50 rounded-lg p-4">
-                            <p class="text-gray-300" x-text="getJobSummary(selectedJob) || 'No AI summary available yet. This job may still be processing.'"></p>
+                        
+                        <!-- Job Summary Section -->
+                        <div x-show="getJobSummary(selectedJob)" class="space-y-4">
+                            <div class="bg-dark-700/50 border border-dark-600/50 rounded-lg p-4">
+                                <h4 class="text-md font-medium text-white mb-3 border-b border-dark-600 pb-2">Job Summary</h4>
+                                
+                                <!-- Summary -->
+                                <div class="mb-4">
+                                    <label class="block text-sm font-medium text-gray-400 mb-1">Summary</label>
+                                    <p class="text-gray-300 text-sm" x-text="getJobSummary(selectedJob)?.summary || 'No summary available'"></p>
+                                </div>
+                                
+                                <!-- Responsibilities -->
+                                <div class="mb-4">
+                                    <label class="block text-sm font-medium text-gray-400 mb-2">Key Responsibilities</label>
+                                    <ul class="space-y-1">
+                                        <template x-for="(responsibility, index) in getJobSummary(selectedJob)?.responsibilities || []" :key="index">
+                                            <li class="flex items-start space-x-2">
+                                                <span class="text-blue-400 mt-1">•</span>
+                                                <span class="text-gray-300 text-sm" x-text="responsibility"></span>
+                                            </li>
+                                        </template>
+                                    </ul>
+                                </div>
+                                
+                                <!-- Requirements -->
+                                <div class="mb-4">
+                                    <label class="block text-sm font-medium text-gray-400 mb-2">Requirements</label>
+                                    <ul class="space-y-1">
+                                        <template x-for="(requirement, index) in getJobSummary(selectedJob)?.requirements || []" :key="index">
+                                            <li class="flex items-start space-x-2">
+                                                <span class="text-green-400 mt-1">•</span>
+                                                <span class="text-gray-300 text-sm" x-text="requirement"></span>
+                                            </li>
+                                        </template>
+                                    </ul>
+                                </div>
+                                
+                                <!-- Opportunity Interest -->
+                                <div class="mb-4">
+                                    <label class="block text-sm font-medium text-gray-400 mb-1">Why This Opportunity</label>
+                                    <p class="text-gray-300 text-sm" x-text="getJobSummary(selectedJob)?.opportunity_interest || 'No analysis available'"></p>
+                                </div>
+                                
+                                <!-- Background Alignment -->
+                                <div class="mb-4">
+                                    <label class="block text-sm font-medium text-gray-400 mb-2">Background Alignment</label>
+                                    <div class="flex items-center space-x-3">
+                                        <div class="flex space-x-1">
+                                            <template x-for="i in 5" :key="i">
+                                                <div class="w-4 h-4 rounded-full border-2" 
+                                                     :class="i <= (getJobSummary(selectedJob)?.background_aligns || 0) ? 'bg-purple-500 border-purple-500' : 'border-gray-600'"></div>
+                                            </template>
+                                        </div>
+                                        <span class="text-sm text-gray-400" x-text="(getJobSummary(selectedJob)?.background_aligns || 0) + '/5'"></span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Cover Letter Section -->
+                            <div x-show="getCoverLetter(selectedJob)" class="bg-dark-700/50 border border-dark-600/50 rounded-lg p-4">
+                                <h4 class="text-md font-medium text-white mb-3 border-b border-dark-600 pb-2">AI Generated Cover Letter</h4>
+                                
+                                <!-- Subject -->
+                                <div class="mb-3">
+                                    <label class="block text-sm font-medium text-gray-400 mb-1">Subject Line</label>
+                                    <p class="text-gray-300 text-sm font-medium" x-text="getCoverLetter(selectedJob)?.subject || 'No subject available'"></p>
+                                </div>
+                                
+                                <!-- Letter Content -->
+                                <div class="mb-3">
+                                    <label class="block text-sm font-medium text-gray-400 mb-2">Letter Content</label>
+                                    <div class="bg-dark-800/50 border border-dark-600/30 rounded-lg p-3">
+                                        <p class="text-gray-300 text-sm whitespace-pre-wrap" x-text="getCoverLetter(selectedJob)?.letter_content || 'No cover letter content available'"></p>
+                                    </div>
+                                </div>
+                                
+                                <!-- Letter Closing -->
+                                <div class="mb-3">
+                                    <label class="block text-sm font-medium text-gray-400 mb-1">Closing</label>
+                                    <p class="text-gray-300 text-sm" x-text="getCoverLetter(selectedJob)?.letter_closing || 'No closing available'"></p>
+                                </div>
+                                
+                                <!-- Copy Cover Letter Button -->
+                                <div class="pt-2">
+                                    <button @click="copyCoverLetter(selectedJob)" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors duration-200 text-sm font-medium">
+                                        <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                                        </svg>
+                                        Copy Cover Letter
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- No AI Analysis Available -->
+                        <div x-show="!getJobSummary(selectedJob) && !getCoverLetter(selectedJob)" class="bg-dark-700/50 border border-dark-600/50 rounded-lg p-4 text-center">
+                            <svg class="w-12 h-12 text-gray-500 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                            </svg>
+                            <p class="text-gray-400">No AI analysis available yet. This job may still be processing.</p>
                         </div>
                     </div>
 
@@ -772,7 +915,55 @@
                     if (!job) return null;
                     
                     const processed = this.processedJobs.find(pj => pj.job_id === job.id);
-                    return processed?.job_summary || null;
+                    if (!processed?.job_summary) return null;
+                    
+                    try {
+                        // Try to parse the job summary if it's a string
+                        if (typeof processed.job_summary === 'string') {
+                            return JSON.parse(processed.job_summary);
+                        }
+                        return processed.job_summary;
+                    } catch (error) {
+                        console.error('Error parsing job summary:', error);
+                        return null;
+                    }
+                },
+
+                getCoverLetter(job) {
+                    if (!job) return null;
+                    
+                    const processed = this.processedJobs.find(pj => pj.job_id === job.id);
+                    if (!processed?.cover_letter) return null;
+                    
+                    try {
+                        // Try to parse the cover letter if it's a string
+                        if (typeof processed.cover_letter === 'string') {
+                            return JSON.parse(processed.cover_letter);
+                        }
+                        return processed.cover_letter;
+                    } catch (error) {
+                        console.error('Error parsing cover letter:', error);
+                        return null;
+                    }
+                },
+
+                async copyCoverLetter(job) {
+                    const coverLetter = this.getCoverLetter(job);
+                    if (!coverLetter) {
+                        this.showErrorMessage('No cover letter available to copy.');
+                        return;
+                    }
+                    
+                    try {
+                        // Format the cover letter for copying
+                        const formattedLetter = `Subject: ${coverLetter.subject}\n\n${coverLetter.letter_content}\n\n${coverLetter.letter_closing}`;
+                        
+                        await navigator.clipboard.writeText(formattedLetter);
+                        this.showSuccessMessage('Cover letter copied to clipboard!');
+                    } catch (error) {
+                        console.error('Error copying to clipboard:', error);
+                        this.showErrorMessage('Failed to copy cover letter. Please copy manually.');
+                    }
                 },
 
                 getStatusClasses(status) {
