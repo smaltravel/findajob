@@ -148,7 +148,7 @@
         <!-- Main Content -->
         <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <!-- Stats Cards -->
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                 <div class="bg-dark-800/50 border border-dark-700/50 rounded-xl p-6">
                     <div class="flex items-center">
                         <div class="p-2 bg-blue-500/20 rounded-lg">
@@ -163,19 +163,7 @@
                     </div>
                 </div>
                 
-                <div class="bg-dark-800/50 border border-dark-700/50 rounded-xl p-6">
-                    <div class="flex items-center">
-                        <div class="p-2 bg-green-500/20 rounded-lg">
-                            <svg class="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                            </svg>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-400">Processed</p>
-                            <p class="text-2xl font-bold text-white" x-text="stats.processedJobs">0</p>
-                        </div>
-                    </div>
-                </div>
+
                 
                 <div class="bg-dark-800/50 border border-dark-700/50 rounded-xl p-6">
                     <div class="flex items-center">
@@ -204,6 +192,53 @@
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <!-- Additional Status Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div class="bg-dark-800/50 border border-dark-700/50 rounded-xl p-6">
+                    <div class="flex items-center">
+                        <div class="p-2 bg-orange-500/20 rounded-lg">
+                            <svg class="w-6 h-6 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"></path>
+                            </svg>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-400">Offers</p>
+                            <p class="text-2xl font-bold text-white" x-text="stats.offerJobs">0</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-dark-800/50 border border-dark-700/50 rounded-xl p-6">
+                    <div class="flex items-center">
+                        <div class="p-2 bg-emerald-500/20 rounded-lg">
+                            <svg class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-400">Accepted</p>
+                            <p class="text-2xl font-bold text-white" x-text="stats.acceptedJobs">0</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-dark-800/50 border border-dark-700/50 rounded-xl p-6">
+                    <div class="flex items-center">
+                        <div class="p-2 bg-red-500/20 rounded-lg">
+                            <svg class="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-400">Rejected</p>
+                            <p class="text-2xl font-bold text-white" x-text="stats.rejectedJobs">0</p>
+                        </div>
+                    </div>
+                </div>
+                
+
             </div>
 
             <!-- Filters and Search -->
@@ -887,9 +922,11 @@
                 },
                 stats: {
                     totalJobs: 0,
-                    processedJobs: 0,
                     appliedJobs: 0,
-                    interviewJobs: 0
+                    interviewJobs: 0,
+                    offerJobs: 0,
+                    acceptedJobs: 0,
+                    rejectedJobs: 0
                 },
 
                 init() {
@@ -957,11 +994,13 @@
 
                 updateStats() {
                     this.stats.totalJobs = this.jobs.length;
-                    this.stats.processedJobs = this.processedJobs.length;
                     this.stats.appliedJobs = this.jobs.filter(job => job.status === 'applied').length;
                     this.stats.interviewJobs = this.jobs.filter(job => 
                         job.status === 'interview' || job.status === 'first interview' || job.status === 'second interview'
                     ).length;
+                    this.stats.offerJobs = this.jobs.filter(job => job.status === 'offer').length;
+                    this.stats.acceptedJobs = this.jobs.filter(job => job.status === 'accepted').length;
+                    this.stats.rejectedJobs = this.jobs.filter(job => job.status === 'rejected').length;
                 },
 
                 getJobSummary(job) {
