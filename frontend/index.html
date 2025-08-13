@@ -31,11 +31,14 @@
         }
     </script>
     <style>
-        .status-new { @apply bg-blue-500/20 text-blue-400 border-blue-500/30; }
-        .status-applied { @apply bg-yellow-500/20 text-yellow-400 border-yellow-500/30; }
-        .status-interview { @apply bg-purple-500/20 text-purple-400 border-purple-500/30; }
-        .status-rejected { @apply bg-red-500/20 text-red-400 border-red-500/30; }
-        .status-accepted { @apply bg-green-500/20 text-green-400 border-green-500/30; }
+        .status-new { @apply bg-blue-500/20 text-blue-100 border-blue-500/30; }
+        .status-applied { @apply bg-yellow-500/20 text-yellow-100 border-yellow-500/30; }
+        .status-interview { @apply bg-purple-500/20 text-purple-100 border-purple-500/30; }
+        .status-offer { @apply bg-orange-500/20 text-orange-100 border-orange-500/30; }
+        .status-accepted { @apply bg-green-500/20 text-green-100 border-green-500/30; }
+        .status-rejected { @apply bg-red-500/20 text-red-100 border-red-500/30; }
+        
+
         
         .job-card {
             @apply bg-dark-800/50 backdrop-blur-sm border border-dark-700/50 rounded-xl p-6 hover:bg-dark-800/70 transition-all duration-300 hover:border-dark-600/50 hover:shadow-xl hover:shadow-dark-900/20;
@@ -218,10 +221,10 @@
                         <option value="">All Statuses</option>
                         <option value="new">New</option>
                         <option value="applied">Applied</option>
-                        <option value="first interview">First Interview</option>
-                        <option value="second interview">Second Interview</option>
-                        <option value="rejected">Rejected</option>
+                        <option value="interview">Interview</option>
+                        <option value="offer">Offer</option>
                         <option value="accepted">Accepted</option>
+                        <option value="rejected">Rejected</option>
                     </select>
                     <select x-model="filters.seniority" class="bg-dark-700/50 border border-dark-600/50 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         <option value="">All Seniority</option>
@@ -249,18 +252,43 @@
                                 </div>
                             </div>
                             <div class="flex items-center space-x-2">
-                                <select 
-                                    @change="updateJobStatus(job.id, $event.target.value)"
-                                    :class="'px-3 py-1 rounded-full text-xs font-medium border ' + getStatusClasses(job.status)"
-                                    x-text="job.status || 'new'"
-                                >
-                                    <option value="new">New</option>
-                                    <option value="applied">Applied</option>
-                                    <option value="first interview">First Interview</option>
-                                    <option value="second interview">Second Interview</option>
-                                    <option value="rejected">Rejected</option>
-                                    <option value="accepted">Accepted</option>
-                                </select>
+                                <div class="relative">
+                                    <button 
+                                        @click="job.showStatusDropdown = !job.showStatusDropdown"
+                                        :class="'px-3 py-1 rounded-full text-xs font-medium border w-24 text-left ' + getStatusClasses(job.status)"
+                                        x-text="getDisplayStatus(job.status)"
+                                    ></button>
+                                    <div x-show="job.showStatusDropdown" 
+                                         @click.away="job.showStatusDropdown = false"
+                                         class="absolute top-full left-0 mt-1 bg-dark-700 border border-dark-600 rounded-lg shadow-xl z-10 min-w-24">
+                                        <div class="py-1">
+                                            <button @click="updateJobStatus(job.id, 'new'); job.showStatusDropdown = false" 
+                                                    class="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-dark-600 hover:text-white transition-colors">
+                                                New
+                                            </button>
+                                            <button @click="updateJobStatus(job.id, 'applied'); job.showStatusDropdown = false" 
+                                                    class="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-dark-600 hover:text-white transition-colors">
+                                                Applied
+                                            </button>
+                                            <button @click="updateJobStatus(job.id, 'interview'); job.showStatusDropdown = false" 
+                                                    class="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-dark-600 hover:text-white transition-colors">
+                                                Interview
+                                            </button>
+                                            <button @click="updateJobStatus(job.id, 'offer'); job.showStatusDropdown = false" 
+                                                    class="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-dark-600 hover:text-white transition-colors">
+                                                Offer
+                                            </button>
+                                            <button @click="updateJobStatus(job.id, 'accepted'); job.showStatusDropdown = false" 
+                                                    class="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-dark-600 hover:text-white transition-colors">
+                                                Accepted
+                                            </button>
+                                            <button @click="updateJobStatus(job.id, 'rejected'); job.showStatusDropdown = false" 
+                                                    class="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-dark-600 hover:text-white transition-colors">
+                                                Rejected
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
                                 <button @click="deleteJob(job.id)" class="text-red-400 hover:text-red-300 transition-colors duration-200">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
@@ -367,18 +395,43 @@
                     <div class="flex items-center justify-between">
                         <div class="flex items-center space-x-4">
                             <span class="text-sm text-gray-400">Status:</span>
-                            <select 
-                                @change="updateJobStatus(selectedJob.id, $event.target.value)"
-                                :class="'px-4 py-2 rounded-lg font-medium border ' + getStatusClasses(selectedJob?.status)"
-                                x-text="selectedJob?.status || 'new'"
-                            >
-                                <option value="new">New</option>
-                                <option value="applied">Applied</option>
-                                <option value="first interview">First Interview</option>
-                                <option value="second interview">Second Interview</option>
-                                <option value="rejected">Rejected</option>
-                                <option value="accepted">Accepted</option>
-                            </select>
+                            <div class="relative">
+                                <button 
+                                    @click="selectedJob.showStatusDropdown = !selectedJob.showStatusDropdown"
+                                    :class="'px-4 py-2 rounded-lg font-medium border text-left min-w-32 ' + getStatusClasses(selectedJob?.status)"
+                                    x-text="getDisplayStatus(selectedJob?.status)"
+                                ></button>
+                                <div x-show="selectedJob.showStatusDropdown" 
+                                     @click.away="selectedJob.showStatusDropdown = false"
+                                     class="absolute top-full left-0 mt-1 bg-dark-700 border border-dark-600 rounded-lg shadow-xl z-10 min-w-32">
+                                    <div class="py-1">
+                                        <button @click="updateJobStatus(selectedJob.id, 'new'); selectedJob.showStatusDropdown = false" 
+                                                class="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-dark-600 hover:text-white transition-colors">
+                                            New
+                                        </button>
+                                        <button @click="updateJobStatus(selectedJob.id, 'applied'); selectedJob.showStatusDropdown = false" 
+                                                class="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-dark-600 hover:text-white transition-colors">
+                                            Applied
+                                        </button>
+                                        <button @click="updateJobStatus(selectedJob.id, 'interview'); selectedJob.showStatusDropdown = false" 
+                                                class="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-dark-600 hover:text-white transition-colors">
+                                            Interview
+                                        </button>
+                                        <button @click="updateJobStatus(selectedJob.id, 'offer'); selectedJob.showStatusDropdown = false" 
+                                                class="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-dark-600 hover:text-white transition-colors">
+                                            Offer
+                                        </button>
+                                        <button @click="updateJobStatus(selectedJob.id, 'accepted'); selectedJob.showStatusDropdown = false" 
+                                                class="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-dark-600 hover:text-white transition-colors">
+                                            Accepted
+                                        </button>
+                                        <button @click="updateJobStatus(selectedJob.id, 'rejected'); selectedJob.showStatusDropdown = false" 
+                                                class="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-dark-600 hover:text-white transition-colors">
+                                            Rejected
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         <div class="flex space-x-3">
                             <a :href="selectedJob?.job_url" target="_blank" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors duration-200 font-medium">
@@ -907,7 +960,7 @@
                     this.stats.processedJobs = this.processedJobs.length;
                     this.stats.appliedJobs = this.jobs.filter(job => job.status === 'applied').length;
                     this.stats.interviewJobs = this.jobs.filter(job => 
-                        job.status === 'first interview' || job.status === 'second interview'
+                        job.status === 'interview' || job.status === 'first interview' || job.status === 'second interview'
                     ).length;
                 },
 
@@ -970,12 +1023,29 @@
                     const statusMap = {
                         'new': 'status-new',
                         'applied': 'status-applied',
+                        'interview': 'status-interview',
                         'first interview': 'status-interview',
                         'second interview': 'status-interview',
-                        'rejected': 'status-rejected',
-                        'accepted': 'status-accepted'
+                        'offer': 'status-offer',
+                        'accepted': 'status-accepted',
+                        'rejected': 'status-rejected'
                     };
                     return statusMap[status] || 'status-new';
+                },
+
+                getDisplayStatus(status) {
+                    // Map old status values to new display values
+                    const statusMap = {
+                        'new': 'new',
+                        'applied': 'applied',
+                        'interview': 'interview',
+                        'first interview': 'interview',
+                        'second interview': 'interview',
+                        'offer': 'offer',
+                        'accepted': 'accepted',
+                        'rejected': 'rejected'
+                    };
+                    return statusMap[status] || 'new';
                 },
 
                 formatDate(dateString) {
