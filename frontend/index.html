@@ -3,1083 +3,685 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FindAJob AI Pipeline</title>
+    <title>FindAJob - Job Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: {
+                            50: '#f8fafc',
+                            100: '#f1f5f9',
+                            200: '#e2e8f0',
+                            300: '#cbd5e1',
+                            400: '#94a3b8',
+                            500: '#64748b',
+                            600: '#475569',
+                            700: '#334155',
+                            800: '#1e293b',
+                            900: '#0f172a',
+                            950: '#020617'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        .status-new { @apply bg-blue-500/20 text-blue-400 border-blue-500/30; }
+        .status-applied { @apply bg-yellow-500/20 text-yellow-400 border-yellow-500/30; }
+        .status-interview { @apply bg-purple-500/20 text-purple-400 border-purple-500/30; }
+        .status-rejected { @apply bg-red-500/20 text-red-400 border-red-500/30; }
+        .status-accepted { @apply bg-green-500/20 text-green-400 border-green-500/30; }
+        
+        .job-card {
+            @apply bg-dark-800/50 backdrop-blur-sm border border-dark-700/50 rounded-xl p-6 hover:bg-dark-800/70 transition-all duration-300 hover:border-dark-600/50 hover:shadow-xl hover:shadow-dark-900/20;
         }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-            color: #ffffff;
-            min-height: 100vh;
-            padding: 20px;
+        
+        .modal-backdrop {
+            @apply fixed inset-0 bg-black/50 backdrop-blur-sm z-40;
         }
-
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
+        
+        .modal-content {
+            @apply fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-dark-800 border border-dark-700 rounded-2xl shadow-2xl z-50 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto;
         }
-
-        .header {
-            text-align: center;
-            margin-bottom: 40px;
-            padding: 20px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 15px;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .header h1 {
-            font-size: 2.5rem;
-            margin-bottom: 10px;
-            background: linear-gradient(45deg, #00d4ff, #ff6b6b);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .header p {
-            font-size: 1.1rem;
-            opacity: 0.8;
-        }
-
-        .pipeline-config {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 15px;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            padding: 30px;
-            margin-bottom: 30px;
-        }
-
-        .pipeline-config h2 {
-            margin-bottom: 20px;
-            color: #00d4ff;
-            font-size: 1.8rem;
-            text-align: center;
-        }
-
-        .config-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-
-        .config-group {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .config-group label {
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: #00d4ff;
-        }
-
-        .config-group input,
-        .config-group select,
-        .config-group textarea {
-            padding: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            border-radius: 8px;
-            background: rgba(255, 255, 255, 0.1);
-            color: #ffffff;
-            font-size: 1rem;
-            transition: all 0.3s ease;
-        }
-
-        .config-group input:focus,
-        .config-group select:focus,
-        .config-group textarea:focus {
-            outline: none;
-            border-color: #00d4ff;
-            box-shadow: 0 0 10px rgba(0, 212, 255, 0.3);
-        }
-
-        .config-group input::placeholder {
-            color: rgba(255, 255, 255, 0.6);
-        }
-
-        .provider-config {
-            background: rgba(0, 212, 255, 0.1);
-            border: 1px solid rgba(0, 212, 255, 0.3);
-            border-radius: 10px;
-            padding: 20px;
-            margin-top: 10px;
-        }
-
-        .provider-config h4 {
-            color: #00d4ff;
-            margin-bottom: 15px;
-        }
-
-        /* CV Upload Section Styles */
-        .cv-upload-section {
-            width: 100%;
-        }
-
-        .cv-input-tabs {
-            display: flex;
-            margin-bottom: 15px;
-            border-radius: 8px;
-            overflow: hidden;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-        }
-
-        .cv-tab {
-            flex: 1;
-            padding: 10px;
-            background: rgba(255, 255, 255, 0.1);
-            border: none;
-            color: #ffffff;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-size: 0.9rem;
-        }
-
-        .cv-tab.active {
-            background: #00d4ff;
-            color: #000000;
-        }
-
-        .cv-tab:hover:not(.active) {
-            background: rgba(255, 255, 255, 0.2);
-        }
-
-        .cv-tab-content {
-            display: none;
-        }
-
-        .cv-tab-content.active {
-            display: block;
-        }
-
-        .cv-file-input {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            border-radius: 8px;
-            background: rgba(255, 255, 255, 0.1);
-            color: #ffffff;
-            cursor: pointer;
-        }
-
-        .cv-file-input::-webkit-file-upload-button {
-            background: #00d4ff;
-            color: #000000;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: 600;
-        }
-
-        .cv-file-info {
-            margin-top: 10px;
-            padding: 8px;
-            background: rgba(0, 212, 255, 0.1);
-            border-radius: 6px;
-            font-size: 0.9rem;
-            color: #00d4ff;
-        }
-
-        .cv-textarea {
-            width: 100%;
-            min-height: 120px;
-            padding: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            border-radius: 8px;
-            background: rgba(255, 255, 255, 0.1);
-            color: #ffffff;
-            font-size: 0.9rem;
-            font-family: 'Courier New', monospace;
-            resize: vertical;
-        }
-
-        .cv-textarea:focus {
-            outline: none;
-            border-color: #00d4ff;
-            box-shadow: 0 0 10px rgba(0, 212, 255, 0.3);
-        }
-
-        .controls {
-            display: flex;
-            gap: 20px;
-            margin-bottom: 40px;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-
-        .btn {
-            padding: 15px 30px;
-            font-size: 1.1rem;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        .btn-primary {
-            background: linear-gradient(45deg, #00d4ff, #0099cc);
-            color: white;
-            box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3);
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(0, 212, 255, 0.4);
-        }
-
-        .btn-secondary {
-            background: linear-gradient(45deg, #ff6b6b, #ee5a52);
-            color: white;
-            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
-        }
-
-        .btn-secondary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(255, 107, 107, 0.4);
-        }
-
-        .btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .status {
-            text-align: center;
-            margin-bottom: 30px;
-            padding: 20px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 15px;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .status-text {
-            font-size: 1.2rem;
-            margin-bottom: 10px;
-        }
-
-        .progress-bar {
-            width: 100%;
-            height: 8px;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 4px;
-            overflow: hidden;
-            margin-top: 15px;
-        }
-
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(45deg, #00d4ff, #ff6b6b);
-            width: 0%;
-            transition: width 0.3s ease;
-            border-radius: 4px;
-        }
-
-        .data-section {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 15px;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            padding: 30px;
-            margin-bottom: 30px;
-        }
-
-        .data-section h2 {
-            margin-bottom: 20px;
-            color: #00d4ff;
-            font-size: 1.8rem;
-        }
-
-        .data-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-
-        .data-table th,
-        .data-table td {
-            padding: 15px;
-            text-align: left;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .data-table th {
-            background: rgba(0, 212, 255, 0.2);
-            font-weight: 600;
-            color: #00d4ff;
-        }
-
-        .data-table tr:hover {
-            background: rgba(255, 255, 255, 0.05);
-        }
-
-        .run-id {
-            font-family: monospace;
-            font-size: 0.9rem;
-            color: #ff6b6b;
-        }
-
-        .job-title {
-            font-weight: 600;
-            color: #00d4ff;
-        }
-
-        .employer {
-            color: #ff6b6b;
-        }
-
-        .loading {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            border-top-color: #00d4ff;
-            animation: spin 1s ease-in-out infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        .error {
-            background: rgba(255, 107, 107, 0.2);
-            border: 1px solid rgba(255, 107, 107, 0.5);
-            color: #ff6b6b;
-            padding: 15px;
-            border-radius: 10px;
-            margin: 20px 0;
-        }
-
-        .success {
-            background: rgba(0, 255, 136, 0.2);
-            border: 1px solid rgba(0, 255, 136, 0.5);
-            color: #00ff88;
-            padding: 15px;
-            border-radius: 10px;
-            margin: 20px 0;
-        }
-
-        .tabs {
-            display: flex;
-            margin-bottom: 20px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .tab {
-            padding: 15px 25px;
-            cursor: pointer;
-            border-bottom: 3px solid transparent;
-            transition: all 0.3s ease;
-            color: rgba(255, 255, 255, 0.7);
-        }
-
-        .tab.active {
-            color: #00d4ff;
-            border-bottom-color: #00d4ff;
-        }
-
-        .tab:hover {
-            color: #00d4ff;
-        }
-
-        .tab-content {
-            display: none;
-        }
-
-        .tab-content.active {
-            display: block;
-        }
-
-        .cover-letter {
-            background: rgba(0, 255, 136, 0.1);
-            border: 1px solid rgba(0, 255, 136, 0.3);
-            border-radius: 10px;
-            padding: 15px;
-            margin: 10px 0;
-            white-space: pre-wrap;
-            font-family: 'Georgia', serif;
-            line-height: 1.6;
-        }
-
-        .job-summary {
-            background: rgba(255, 165, 0, 0.1);
-            border: 1px solid rgba(255, 165, 0, 0.3);
-            border-radius: 10px;
-            padding: 15px;
-            margin: 10px 0;
-            white-space: pre-wrap;
-            line-height: 1.6;
-        }
-
-        @media (max-width: 768px) {
-            .config-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .controls {
-                flex-direction: column;
-                align-items: center;
-            }
-            
-            .btn {
-                width: 100%;
-                max-width: 300px;
-            }
-            
-            .data-table {
-                font-size: 0.9rem;
-            }
-            
-            .data-table th,
-            .data-table td {
-                padding: 10px 8px;
-            }
-
-            .tabs {
-                flex-direction: column;
-            }
-
-            .tab {
-                text-align: center;
-                border-bottom: none;
-                border-right: 3px solid transparent;
-            }
-
-            .tab.active {
-                border-right-color: #00d4ff;
-                border-bottom-color: transparent;
-            }
-        }
+        
+        [x-cloak] { display: none !important; }
     </style>
 </head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>🤖 FindAJob AI Pipeline</h1>
-            <p>AI-powered job crawling and processing through our automated Celery pipeline</p>
-        </div>
+<body class="bg-gradient-to-br from-dark-950 via-dark-900 to-dark-800 min-h-screen text-gray-100">
+    <div x-data="jobDashboard()" class="min-h-screen">
+        <!-- Header -->
+        <header class="bg-dark-800/50 backdrop-blur-md border-b border-dark-700/50 sticky top-0 z-30">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between items-center py-6">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2-2v2m8 0V6a2 2 0 012 2v6a2 2 0 01-2 2H8a2 2 0 01-2-2V8a2 2 0 012-2z"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                                FindAJob Dashboard
+                            </h1>
+                            <p class="text-sm text-gray-400">AI-Powered Job Pipeline</p>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center space-x-4">
+                        <button @click="refreshJobs()" class="bg-dark-700 hover:bg-dark-600 text-gray-300 hover:text-white px-4 py-2 rounded-lg transition-colors duration-200 flex items-center space-x-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                            </svg>
+                            <span>Refresh</span>
+                        </button>
+                        <button @click="showPipelineConfig = true; console.log('Pipeline config clicked, showPipelineConfig:', showPipelineConfig)" class="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 py-2 rounded-lg transition-all duration-200 font-medium">
+                            New Pipeline
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
 
-        <div class="pipeline-config">
-            <h2>⚙️ Pipeline Configuration</h2>
-            <div class="config-grid">
-                <div class="config-group">
-                    <label for="keywords">Job Keywords</label>
-                    <input type="text" id="keywords" placeholder="e.g., python developer, software engineer" value="python developer">
+        <!-- Main Content -->
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div class="bg-dark-800/50 border border-dark-700/50 rounded-xl p-6">
+                    <div class="flex items-center">
+                        <div class="p-2 bg-blue-500/20 rounded-lg">
+                            <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2-2v2m8 0V6a2 2 0 012 2v6a2 2 0 01-2 2H8a2 2 0 01-2-2V8a2 2 0 012-2z"></path>
+                            </svg>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-400">Total Jobs</p>
+                            <p class="text-2xl font-bold text-white" x-text="stats.totalJobs">0</p>
+                        </div>
+                    </div>
                 </div>
                 
-                <div class="config-group">
-                    <label for="location">Location</label>
-                    <input type="text" id="location" placeholder="e.g., remote, san francisco, new york" value="remote">
+                <div class="bg-dark-800/50 border border-dark-700/50 rounded-xl p-6">
+                    <div class="flex items-center">
+                        <div class="p-2 bg-green-500/20 rounded-lg">
+                            <svg class="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-400">Processed</p>
+                            <p class="text-2xl font-bold text-white" x-text="stats.processedJobs">0</p>
+                        </div>
+                    </div>
                 </div>
                 
-                <div class="config-group">
-                    <label for="seniority">Seniority Level</label>
-                    <select id="seniority">
-                        <option value="1">1 - Intern</option>
-                        <option value="2">2 - Assistant</option>
-                        <option value="3" selected>3 - Junior</option>
-                        <option value="4">4 - Mid-Senior</option>
-                        <option value="5">5 - Director</option>
-                        <option value="6">6 - Executive</option>
+                <div class="bg-dark-800/50 border border-dark-700/50 rounded-xl p-6">
+                    <div class="flex items-center">
+                        <div class="p-2 bg-yellow-500/20 rounded-lg">
+                            <svg class="w-6 h-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-400">Applied</p>
+                            <p class="text-2xl font-bold text-white" x-text="stats.appliedJobs">0</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-dark-800/50 border border-dark-700/50 rounded-xl p-6">
+                    <div class="flex items-center">
+                        <div class="p-2 bg-purple-500/20 rounded-lg">
+                            <svg class="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                            </svg>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-400">Interviews</p>
+                            <p class="text-2xl font-bold text-white" x-text="stats.interviewJobs">0</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filters and Search -->
+            <div class="bg-dark-800/50 border border-dark-700/50 rounded-xl p-6 mb-8">
+                <div class="flex flex-col sm:flex-row gap-4">
+                    <div class="flex-1">
+                        <input 
+                            type="text" 
+                            placeholder="Search jobs..." 
+                            x-model="filters.search"
+                            class="w-full bg-dark-700/50 border border-dark-600/50 rounded-lg px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                    </div>
+                    <select x-model="filters.status" class="bg-dark-700/50 border border-dark-600/50 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <option value="">All Statuses</option>
+                        <option value="new">New</option>
+                        <option value="applied">Applied</option>
+                        <option value="first interview">First Interview</option>
+                        <option value="second interview">Second Interview</option>
+                        <option value="rejected">Rejected</option>
+                        <option value="accepted">Accepted</option>
+                    </select>
+                    <select x-model="filters.seniority" class="bg-dark-700/50 border border-dark-600/50 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <option value="">All Seniority</option>
+                        <option value="entry">Entry</option>
+                        <option value="junior">Junior</option>
+                        <option value="mid">Mid</option>
+                        <option value="senior">Senior</option>
+                        <option value="lead">Lead</option>
                     </select>
                 </div>
-                
-                <div class="config-group">
-                    <label for="maxJobs">Max Job Count</label>
-                    <input type="number" id="maxJobs" min="1" max="100" value="10">
+            </div>
+
+            <!-- Job Cards Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                <template x-for="job in filteredJobs" :key="job.id">
+                    <div class="job-card">
+                        <!-- Job Header -->
+                        <div class="flex justify-between items-start mb-4">
+                            <div class="flex-1">
+                                <h3 class="text-lg font-semibold text-white mb-2" x-text="job.job_title || 'Untitled Position'"></h3>
+                                <div class="flex items-center space-x-2 mb-2">
+                                    <span class="text-sm text-gray-400" x-text="job.employer || 'Unknown Company'"></span>
+                                    <span class="text-gray-600">•</span>
+                                    <span class="text-sm text-gray-400" x-text="job.job_location || 'Remote'"></span>
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <select 
+                                    @change="updateJobStatus(job.id, $event.target.value)"
+                                    :class="'px-3 py-1 rounded-full text-xs font-medium border ' + getStatusClasses(job.status)"
+                                    x-text="job.status || 'new'"
+                                >
+                                    <option value="new">New</option>
+                                    <option value="applied">Applied</option>
+                                    <option value="first interview">First Interview</option>
+                                    <option value="second interview">Second Interview</option>
+                                    <option value="rejected">Rejected</option>
+                                    <option value="accepted">Accepted</option>
+                                </select>
+                                <button @click="deleteJob(job.id)" class="text-red-400 hover:text-red-300 transition-colors duration-200">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- AI Summary -->
+                        <div class="mb-4">
+                            <p class="text-sm text-gray-300 line-clamp-3" x-text="getJobSummary(job) || 'No AI summary available yet.'"></p>
+                        </div>
+
+                        <!-- Job Details -->
+                        <div class="space-y-2 mb-4">
+                            <div class="flex items-center text-sm">
+                                <span class="text-gray-400 w-20">Seniority:</span>
+                                <span class="text-white" x-text="job.seniority_level || 'Not specified'"></span>
+                            </div>
+                            <div class="flex items-center text-sm">
+                                <span class="text-gray-400 w-20">Type:</span>
+                                <span class="text-white" x-text="job.employment_type || 'Full-time'"></span>
+                            </div>
+                            <div class="flex items-center text-sm">
+                                <span class="text-gray-400 w-20">Function:</span>
+                                <span class="text-white" x-text="job.job_function || 'Not specified'"></span>
+                            </div>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="flex space-x-3">
+                            <button @click="openJobModal(job)" class="flex-1 bg-dark-700 hover:bg-dark-600 text-gray-300 hover:text-white px-4 py-2 rounded-lg transition-colors duration-200 text-sm font-medium">
+                                View Details
+                            </button>
+                            <a :href="job.job_url" target="_blank" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors duration-200 text-sm font-medium">
+                                Apply
+                            </a>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Empty State -->
+            <div x-show="filteredJobs.length === 0" class="text-center py-16">
+                <div class="w-24 h-24 mx-auto mb-6 text-gray-400">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2-2v2m8 0V6a2 2 0 012 2v6a2 2 0 01-2 2H8a2 2 0 01-2-2V8a2 2 0 012-2z"></path>
+                    </svg>
+                </div>
+                <h3 class="text-xl font-semibold text-gray-300 mb-2">No jobs found</h3>
+                <p class="text-gray-500">Try adjusting your filters or start a new pipeline to find jobs.</p>
+            </div>
+        </main>
+
+        <!-- Job Detail Modal -->
+        <div x-show="selectedJob" class="modal-backdrop" @click="selectedJob = null">
+            <div class="modal-content" @click.stop>
+                <div class="p-6 border-b border-dark-700">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h2 class="text-2xl font-bold text-white" x-text="selectedJob?.job_title || 'Job Details'"></h2>
+                            <p class="text-gray-400 mt-1" x-text="selectedJob?.employer + ' • ' + (selectedJob?.job_location || 'Remote')"></p>
+                        </div>
+                        <button @click="selectedJob = null" class="text-gray-400 hover:text-white transition-colors duration-200">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
                 
-                <div class="config-group">
-                    <label for="aiProvider">AI Provider</label>
-                    <select id="aiProvider">
-                        <option value="template">Template-based (Default)</option>
-                        <option value="ollama">Ollama (Local LLM)</option>
-                        <option value="google">Google AI (Cloud)</option>
-                    </select>
-                </div>
-                
-                <div class="config-group">
-                    <label for="cvContent">CV Content</label>
-                    <div class="cv-upload-section">
-                        <div class="cv-input-tabs">
-                            <button type="button" class="cv-tab active" data-cv-tab="upload">📁 Upload File</button>
-                            <button type="button" class="cv-tab" data-cv-tab="manual">✏️ Manual Input</button>
+                <div class="p-6 space-y-6">
+                    <!-- Status and Actions -->
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-4">
+                            <span class="text-sm text-gray-400">Status:</span>
+                            <select 
+                                @change="updateJobStatus(selectedJob.id, $event.target.value)"
+                                :class="'px-4 py-2 rounded-lg font-medium border ' + getStatusClasses(selectedJob?.status)"
+                                x-text="selectedJob?.status || 'new'"
+                            >
+                                <option value="new">New</option>
+                                <option value="applied">Applied</option>
+                                <option value="first interview">First Interview</option>
+                                <option value="second interview">Second Interview</option>
+                                <option value="rejected">Rejected</option>
+                                <option value="accepted">Accepted</option>
+                            </select>
+                        </div>
+                        <div class="flex space-x-3">
+                            <a :href="selectedJob?.job_url" target="_blank" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors duration-200 font-medium">
+                                Apply Now
+                            </a>
+                            <button @click="deleteJob(selectedJob.id)" class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg transition-colors duration-200 font-medium">
+                                Delete Job
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Job Details Grid -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="space-y-4">
+                            <div>
+                                <h3 class="text-lg font-semibold text-white mb-3">Job Information</h3>
+                                <div class="space-y-3">
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-400">Seniority Level:</span>
+                                        <span class="text-white" x-text="selectedJob?.seniority_level || 'Not specified'"></span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-400">Employment Type:</span>
+                                        <span class="text-white" x-text="selectedJob?.employment_type || 'Full-time'"></span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-400">Job Function:</span>
+                                        <span class="text-white" x-text="selectedJob?.job_function || 'Not specified'"></span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-400">Industries:</span>
+                                        <span class="text-white" x-text="selectedJob?.industries || 'Not specified'"></span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-400">Created:</span>
+                                        <span class="text-white" x-text="formatDate(selectedJob?.created_at)"></span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         
-                        <div id="cvUploadTab" class="cv-tab-content active">
-                            <input type="file" id="cvFile" accept=".json" class="cv-file-input">
-                            <div class="cv-file-info" id="cvFileInfo"></div>
+                        <div class="space-y-4">
+                            <div>
+                                <h3 class="text-lg font-semibold text-white mb-3">Company Information</h3>
+                                <div class="space-y-3">
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-400">Employer:</span>
+                                        <span class="text-white" x-text="selectedJob?.employer || 'Not specified'"></span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-400">Location:</span>
+                                        <span class="text-white" x-text="selectedJob?.job_location || 'Remote'"></span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-400">Source:</span>
+                                        <span class="text-white" x-text="selectedJob?.spider_source || 'Unknown'"></span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        
-                        <div id="cvManualTab" class="cv-tab-content">
-                            <textarea id="cvTextarea" placeholder="Paste your CV content as JSON here...&#10;&#10;Example:&#10;{&#10;  &quot;name&quot;: &quot;John Doe&quot;,&#10;  &quot;title&quot;: &quot;Senior Developer&quot;,&#10;  &quot;about&quot;: &quot;Experienced developer...&quot;,&#10;  &quot;highlights&quot;: [&quot;Python&quot;, &quot;JavaScript&quot;],&#10;  &quot;experience&quot;: [...]&#10;}"></textarea>
+                    </div>
+
+                    <!-- AI Summary -->
+                    <div>
+                        <h3 class="text-lg font-semibold text-white mb-3">AI Analysis</h3>
+                        <div class="bg-dark-700/50 border border-dark-600/50 rounded-lg p-4">
+                            <p class="text-gray-300" x-text="getJobSummary(selectedJob) || 'No AI summary available yet. This job may still be processing.'"></p>
+                        </div>
+                    </div>
+
+                    <!-- Full Description -->
+                    <div x-show="selectedJob?.job_description">
+                        <h3 class="text-lg font-semibold text-white mb-3">Full Job Description</h3>
+                        <div class="bg-dark-700/50 border border-dark-600/50 rounded-lg p-4 max-h-64 overflow-y-auto">
+                            <p class="text-gray-300 whitespace-pre-wrap" x-text="selectedJob?.job_description"></p>
                         </div>
                     </div>
                 </div>
             </div>
+        </div>
 
-            <!-- Ollama Configuration -->
-            <div id="ollamaConfig" class="provider-config" style="display: none;">
-                <h4>🦙 Ollama Configuration</h4>
-                <div class="config-grid">
-                    <div class="config-group">
-                        <label for="ollamaModel">Model</label>
-                        <input type="text" id="ollamaModel" placeholder="e.g., deepseek-r1:7b" value="deepseek-r1:7b">
-                    </div>
-                    <div class="config-group">
-                        <label for="ollamaUrl">Base URL</label>
-                        <input type="text" id="ollamaUrl" placeholder="e.g., http://localhost:11434" value="http://localhost:11434">
-                    </div>
+        <!-- Pipeline Configuration Modal -->
+        <div x-show="showPipelineConfig" x-cloak class="modal-backdrop" @click="showPipelineConfig = false" style="display: none;">
+            <div class="modal-content max-w-2xl" @click.stop>
+                <div class="p-6 border-b border-dark-700">
+                    <h2 class="text-2xl font-bold text-white">New Job Pipeline</h2>
+                    <p class="text-sm text-gray-400 mt-1">Modal state: <span x-text="showPipelineConfig"></span></p>
                 </div>
-            </div>
-
-            <!-- Google AI Configuration -->
-            <div id="googleConfig" class="provider-config" style="display: none;">
-                <h4>🔍 Google AI Configuration</h4>
-                <div class="config-grid">
-                    <div class="config-group">
-                        <label for="googleModel">Model</label>
-                        <input type="text" id="googleModel" placeholder="e.g., gemini-2.5-flash-lite" value="gemini-2.5-flash-lite">
+                
+                <div class="p-6 space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Keywords</label>
+                            <input type="text" x-model="pipelineConfig.keywords" placeholder="e.g., python developer" class="w-full bg-dark-700/50 border border-dark-600/50 rounded-lg px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Location</label>
+                            <input type="text" x-model="pipelineConfig.location" placeholder="e.g., remote, new york" class="w-full bg-dark-700/50 border border-dark-600/50 rounded-lg px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Max Jobs</label>
+                            <input type="number" x-model="pipelineConfig.maxJobs" min="1" max="100" class="w-full bg-dark-700/50 border border-dark-600/50 rounded-lg px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Seniority</label>
+                            <select x-model="pipelineConfig.seniority" class="w-full bg-dark-700/50 border border-dark-600/50 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                <option value="1">Entry Level</option>
+                                <option value="2">Junior</option>
+                                <option value="3">Mid Level</option>
+                                <option value="4">Senior</option>
+                                <option value="5">Lead</option>
+                            </select>
+                        </div>
                     </div>
-                    <div class="config-group">
-                        <label for="googleApiKey">API Key</label>
-                        <input type="password" id="googleApiKey" placeholder="Enter your Google AI API key">
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">CV Content</label>
+                        <textarea x-model="pipelineConfig.cvContent" placeholder="Enter your CV content or paste your resume text here..." rows="4" class="w-full bg-dark-700/50 border border-dark-600/50 rounded-lg px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"></textarea>
+                        <p class="text-xs text-gray-500 mt-1">This will be used by AI to generate personalized cover letters and job summaries</p>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">AI Provider</label>
+                        <select x-model="pipelineConfig.aiProvider" class="w-full bg-dark-700/50 border border-dark-600/50 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <option value="ollama">Ollama (Local)</option>
+                            <option value="google">Google Gemini</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Ollama Configuration -->
+                    <div x-show="pipelineConfig.aiProvider === 'ollama'" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Ollama Model</label>
+                            <input type="text" x-model="pipelineConfig.ollamaModel" placeholder="e.g., deepseek-r1:7b" class="w-full bg-dark-700/50 border border-dark-600/50 rounded-lg px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Ollama URL</label>
+                            <input type="text" x-model="pipelineConfig.ollamaUrl" placeholder="http://localhost:11434" class="w-full bg-dark-700/50 border border-dark-600/50 rounded-lg px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                    </div>
+                    
+                    <!-- Google Configuration -->
+                    <div x-show="pipelineConfig.aiProvider === 'google'" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Google Model</label>
+                            <select x-model="pipelineConfig.googleModel" class="w-full bg-dark-700/50 border border-dark-600/50 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
+                                <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                                <option value="gemini-2.0-flash-exp">Gemini 2.0 Flash Exp</option>
+                                <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                                <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Google API Key</label>
+                            <input type="password" x-model="pipelineConfig.googleApiKey" placeholder="Enter your Google API key" class="w-full bg-dark-700/50 border border-dark-600/50 rounded-lg px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <p class="text-xs text-gray-500 mt-1">Your API key is stored locally and never sent to our servers</p>
+                        </div>
+                    </div>
+                    
+                    <div class="flex justify-end space-x-3">
+                        <button @click="showPipelineConfig = false" class="px-6 py-2 text-gray-400 hover:text-white transition-colors duration-200">
+                            Cancel
+                        </button>
+                        <button @click="startPipeline()" class="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 py-2 rounded-lg transition-all duration-200 font-medium">
+                            Start Pipeline
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="controls">
-            <button id="runPipelineBtn" class="btn btn-primary">
-                🚀 Run AI Pipeline
-            </button>
-            <button id="refreshDataBtn" class="btn btn-secondary">
-                🔄 Refresh Data
-            </button>
-        </div>
-
-        <div id="statusSection" class="status" style="display: none;">
-            <div class="status-text" id="statusText">Initializing AI pipeline...</div>
-            <div class="progress-bar">
-                <div class="progress-fill" id="progressFill"></div>
-            </div>
-        </div>
-
-        <div id="messageSection"></div>
-
-        <div class="data-section">
-            <h2>📊 Pipeline Results</h2>
-            <div class="tabs">
-                <div class="tab active" data-tab="jobs">🕷️ Crawled Jobs</div>
-                <div class="tab" data-tab="processed">🤖 AI-Processed Jobs</div>
-                <div class="tab" data-tab="status">📈 Task Status</div>
-            </div>
-
-            <!-- Crawled Jobs Tab -->
-            <div id="jobsTab" class="tab-content active">
-                <div id="jobsTable">
-                    <p style="text-align: center; opacity: 0.7;">No jobs crawled yet. Run the pipeline to get started!</p>
-                </div>
-            </div>
-
-            <!-- AI-Processed Jobs Tab -->
-            <div id="processedTab" class="tab-content">
-                <div id="processedJobsTable">
-                    <p style="text-align: center; opacity: 0.7;">No jobs processed yet. Run the pipeline to get started!</p>
-                </div>
-            </div>
-
-            <!-- Task Status Tab -->
-            <div id="statusTab" class="tab-content">
-                <div id="taskStatusTable">
-                    <p style="text-align: center; opacity: 0.7;">No active tasks</p>
-                </div>
+        <!-- Loading Overlay -->
+        <div x-show="loading" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+            <div class="bg-dark-800 border border-dark-700 rounded-xl p-8 text-center">
+                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                <p class="text-white text-lg">Loading...</p>
             </div>
         </div>
     </div>
 
     <script>
-        class AIPipelineManager {
-            constructor() {
-                this.apiBase = '/api';
-                this.currentRunId = null;
-                this.statusCheckInterval = null;
-                this.currentCvContent = null;
-                this.init();
-            }
+        function jobDashboard() {
+            return {
+                jobs: [],
+                processedJobs: [],
+                selectedJob: null,
+                showPipelineConfig: false,
+                loading: false,
+                filters: {
+                    search: '',
+                    status: '',
+                    seniority: ''
+                },
+                pipelineConfig: {
+                    keywords: 'python developer',
+                    location: 'remote',
+                    maxJobs: 10,
+                    seniority: 3,
+                    aiProvider: 'ollama',
+                    ollamaModel: 'deepseek-r1:7b',
+                    ollamaUrl: 'http://localhost:11434',
+                    googleModel: 'gemini-2.5-flash-lite',
+                    googleApiKey: '',
+                    cvContent: '' // Added cvContent to pipelineConfig
+                },
+                stats: {
+                    totalJobs: 0,
+                    processedJobs: 0,
+                    appliedJobs: 0,
+                    interviewJobs: 0
+                },
 
-            init() {
-                document.getElementById('runPipelineBtn').addEventListener('click', () => this.runPipeline());
-                document.getElementById('refreshDataBtn').addEventListener('click', () => this.refreshData());
-                document.getElementById('aiProvider').addEventListener('change', (e) => this.toggleProviderConfig(e.target.value));
-                
-                // Tab switching
-                document.querySelectorAll('.tab').forEach(tab => {
-                    tab.addEventListener('click', () => this.switchTab(tab.dataset.tab));
-                });
+                init() {
+                    this.loadJobs();
+                    this.loadProcessedJobs();
+                },
 
-                // CV tab switching
-                document.querySelectorAll('.cv-tab').forEach(tab => {
-                    tab.addEventListener('click', () => this.switchCvTab(tab.dataset.cvTab));
-                });
+                get filteredJobs() {
+                    let filtered = this.jobs;
+                    
+                    if (this.filters.search) {
+                        const search = this.filters.search.toLowerCase();
+                        filtered = filtered.filter(job => 
+                            (job.job_title && job.job_title.toLowerCase().includes(search)) ||
+                            (job.employer && job.employer.toLowerCase().includes(search)) ||
+                            (job.job_location && job.job_location.toLowerCase().includes(search))
+                        );
+                    }
+                    
+                    if (this.filters.status) {
+                        filtered = filtered.filter(job => job.status === this.filters.status);
+                    }
+                    
+                    if (this.filters.seniority) {
+                        filtered = filtered.filter(job => job.seniority_level === this.filters.seniority);
+                    }
+                    
+                    return filtered;
+                },
 
-                // CV file upload handling
-                document.getElementById('cvFile').addEventListener('change', (e) => this.handleCvFileUpload(e));
-
-                // CV textarea change handling
-                document.getElementById('cvTextarea').addEventListener('input', () => this.handleCvTextareaChange());
-
-                this.refreshData();
-                
-                // Refresh data every 10 seconds
-                setInterval(() => this.refreshData(), 10000);
-            }
-
-            toggleProviderConfig(provider) {
-                // Hide all provider configs
-                document.getElementById('ollamaConfig').style.display = 'none';
-                document.getElementById('googleConfig').style.display = 'none';
-                
-                // Show selected provider config
-                if (provider === 'ollama') {
-                    document.getElementById('ollamaConfig').style.display = 'block';
-                } else if (provider === 'google') {
-                    document.getElementById('googleConfig').style.display = 'block';
-                }
-            }
-
-            switchTab(tabName) {
-                // Remove active class from all tabs and contents
-                document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
-                document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-                
-                // Add active class to selected tab and content
-                document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
-                document.getElementById(`${tabName}Tab`).classList.add('active');
-            }
-
-            switchCvTab(tabName) {
-                // Remove active class from all CV tabs and contents
-                document.querySelectorAll('.cv-tab').forEach(tab => tab.classList.remove('active'));
-                document.querySelectorAll('.cv-tab-content').forEach(content => content.classList.remove('active'));
-                
-                // Add active class to selected CV tab and content
-                document.querySelector(`[data-cv-tab="${tabName}"]`).classList.add('active');
-                document.getElementById(`cv${tabName.charAt(0).toUpperCase() + tabName.slice(1)}Tab`).classList.add('active');
-            }
-
-            handleCvFileUpload(event) {
-                const file = event.target.files[0];
-                if (!file) return;
-
-                const reader = new FileReader();
-                reader.onload = (e) => {
+                async loadJobs() {
                     try {
-                        const cvContent = JSON.parse(e.target.result);
-                        this.currentCvContent = cvContent;
-                        
-                        // Update file info
-                        const fileInfo = document.getElementById('cvFileInfo');
-                        fileInfo.innerHTML = `✅ File loaded: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
-                        fileInfo.style.color = '#00d4ff';
-                        
-                        // Also populate the textarea for manual editing
-                        document.getElementById('cvTextarea').value = JSON.stringify(cvContent, null, 2);
-                    } catch (error) {
-                        const fileInfo = document.getElementById('cvFileInfo');
-                        fileInfo.innerHTML = `❌ Error: Invalid JSON file`;
-                        fileInfo.style.color = '#ff6b6b';
-                        this.currentCvContent = null;
-                    }
-                };
-                reader.readAsText(file);
-            }
-
-            handleCvTextareaChange() {
-                const textareaContent = document.getElementById('cvTextarea').value.trim();
-                if (textareaContent) {
-                    try {
-                        this.currentCvContent = JSON.parse(textareaContent);
-                        // Clear file info since we're now using manual input
-                        const fileInfo = document.getElementById('cvFileInfo');
-                        fileInfo.innerHTML = `✅ Manual input updated`;
-                        fileInfo.style.color = '#00d4ff';
-                    } catch (error) {
-                        this.currentCvContent = null;
-                        const fileInfo = document.getElementById('cvFileInfo');
-                        fileInfo.innerHTML = `❌ Invalid JSON format`;
-                        fileInfo.style.color = '#ff6b6b';
-                    }
-                } else {
-                    this.currentCvContent = null;
-                    const fileInfo = document.getElementById('cvFileInfo');
-                    fileInfo.innerHTML = `No CV content provided`;
-                    fileInfo.style.color = 'rgba(255, 255, 255, 0.6)';
-                }
-            }
-
-            getPipelineConfig() {
-                return {
-                    keywords: document.getElementById('keywords').value,
-                    location: document.getElementById('location').value,
-                    seniority: parseInt(document.getElementById('seniority').value),
-                    max_jobs: parseInt(document.getElementById('maxJobs').value),
-                    ai_provider: document.getElementById('aiProvider').value,
-                    cv_content: this.getCvContent(),
-                    ollama_model: document.getElementById('ollamaModel').value,
-                    ollama_url: document.getElementById('ollamaUrl').value,
-                    google_model: document.getElementById('googleModel').value,
-                    google_api_key: document.getElementById('googleApiKey').value
-                };
-            }
-
-            getCvContent() {
-                // First try to get from file upload
-                if (this.currentCvContent) {
-                    return this.currentCvContent;
-                }
-                
-                // Then try to get from textarea
-                const textareaContent = document.getElementById('cvTextarea').value.trim();
-                if (textareaContent) {
-                    try {
-                        return JSON.parse(textareaContent);
-                    } catch (error) {
-                        console.error('Invalid JSON in textarea:', error);
-                        return null;
-                    }
-                }
-                
-                return null;
-            }
-
-            async runPipeline() {
-                try {
-                    const config = this.getPipelineConfig();
-                    
-                    // Validate required fields
-                    if (!config.keywords.trim() || !config.location.trim()) {
-                        this.showMessage('Please fill in keywords and location', 'error');
-                        return;
-                    }
-
-                    this.showStatus('Starting AI pipeline...', 0);
-                    this.disableButton('runPipelineBtn', true);
-                    
-                    const response = await fetch(`${this.apiBase}/pipeline`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(config)
-                    });
-
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-
-                    const data = await response.json();
-                    this.currentRunId = data.run_id;
-                    
-                    this.showStatus('AI pipeline started! Processing...', 25);
-                    this.showMessage('AI pipeline started successfully!', 'success');
-                    
-                    // Start monitoring the pipeline
-                    this.monitorPipeline(data.run_id);
-                    
-                } catch (error) {
-                    console.error('Error starting AI pipeline:', error);
-                    this.showMessage(`Error starting AI pipeline: ${error.message}`, 'error');
-                    this.hideStatus();
-                    this.disableButton('runPipelineBtn', false);
-                }
-            }
-
-            async monitorPipeline(runId) {
-                this.statusCheckInterval = setInterval(async () => {
-                    try {
-                        const response = await fetch(`${this.apiBase}/pipeline/status/${runId}`);
-                        
-                        if (!response.ok) {
-                            throw new Error(`HTTP error! status: ${response.status}`);
-                        }
-
-                        const data = await response.json();
-                        
-                        if (data.status === 'completed') {
-                            this.showStatus('AI pipeline completed!', 100);
-                            this.showMessage('AI pipeline completed successfully!', 'success');
-                            this.hideStatus();
-                            this.disableButton('runPipelineBtn', false);
-                            clearInterval(this.statusCheckInterval);
-                            
-                            // Refresh data to show new results
-                            setTimeout(() => this.refreshData(), 1000);
-                        } else if (data.status === 'service1_started') {
-                            this.showStatus('Service 1: Crawling jobs...', 50);
-                        } else if (data.status === 'service2_started') {
-                            this.showStatus('Service 2: Processing jobs with AI...', 75);
-                        } else if (data.status === 'processing') {
-                            this.showStatus('Processing pipeline...', 60);
-                        }
-                        
-                    } catch (error) {
-                        console.error('Error checking pipeline status:', error);
-                        this.showMessage(`Error checking pipeline status: ${error.message}`, 'error');
-                        this.hideStatus();
-                        this.disableButton('runPipelineBtn', false);
-                        clearInterval(this.statusCheckInterval);
-                    }
-                }, 3000);
-            }
-
-            async refreshData() {
-                try {
-                    // Refresh jobs data
-                    await this.refreshJobsData();
-                    
-                    // Refresh processed jobs data
-                    await this.refreshProcessedJobsData();
-                    
-                    // Refresh task status
-                    await this.refreshTaskStatus();
-                    
-                } catch (error) {
-                    console.error('Error refreshing data:', error);
-                    this.showMessage(`Error refreshing data: ${error.message}`, 'error');
-                }
-            }
-
-            async refreshJobsData() {
-                try {
-                    const response = await fetch(`${this.apiBase}/jobs`);
-                    
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-
-                    const data = await response.json();
-                    this.displayJobsData(data.jobs || []);
-                    
-                } catch (error) {
-                    console.error('Error fetching jobs:', error);
-                    this.displayJobsData([]);
-                }
-            }
-
-            async refreshProcessedJobsData() {
-                try {
-                    const response = await fetch(`${this.apiBase}/processed-jobs`);
-                    
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-
-                    const data = await response.json();
-                    this.displayProcessedJobsData(data.processed_jobs || []);
-                    
-                } catch (error) {
-                    console.error('Error fetching processed jobs:', error);
-                    this.displayProcessedJobsData([]);
-                }
-            }
-
-            async refreshTaskStatus() {
-                try {
-                    if (this.currentRunId) {
-                        const response = await fetch(`${this.apiBase}/pipeline/status/${this.currentRunId}`);
-                        
+                        this.loading = true;
+                        const response = await fetch('/api/jobs');
                         if (response.ok) {
                             const data = await response.json();
-                            this.displayTaskStatus(data);
+                            this.jobs = data.jobs || [];
+                            this.updateStats();
                         }
+                    } catch (error) {
+                        console.error('Error loading jobs:', error);
+                    } finally {
+                        this.loading = false;
                     }
-                } catch (error) {
-                    console.error('Error fetching task status:', error);
-                }
-            }
+                },
 
-            displayJobsData(jobs) {
-                const jobsTable = document.getElementById('jobsTable');
-                
-                if (!jobs || jobs.length === 0) {
-                    jobsTable.innerHTML = '<p style="text-align: center; opacity: 0.7;">No jobs crawled yet. Run the pipeline to get started!</p>';
-                    return;
-                }
-
-                let tableHTML = `
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Job Title</th>
-                                <th>Employer</th>
-                                <th>Location</th>
-                                <th>Employment Type</th>
-                                <th>Seniority</th>
-                                <th>Pipeline Run</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                `;
-
-                jobs.forEach(job => {
-                    tableHTML += `
-                        <tr>
-                            <td class="job-title">${job.job_title || 'N/A'}</td>
-                            <td class="employer">${job.employer || 'N/A'}</td>
-                            <td>${job.job_location || 'N/A'}</td>
-                            <td>${job.employment_type || 'N/A'}</td>
-                            <td>${job.seniority_level || 'N/A'}</td>
-                            <td class="run-id">${job.run_id || 'N/A'}</td>
-                        </tr>
-                    `;
-                });
-
-                tableHTML += '</tbody></table>';
-                jobsTable.innerHTML = tableHTML;
-            }
-
-            displayProcessedJobsData(processedJobs) {
-                const processedJobsTable = document.getElementById('processedJobsTable');
-                
-                if (!processedJobs || processedJobs.length === 0) {
-                    processedJobsTable.innerHTML = '<p style="text-align: center; opacity: 0.7;">No jobs processed yet. Run the pipeline to get started!</p>';
-                    return;
-                }
-
-                let tableHTML = `
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Job Title</th>
-                                <th>Employer</th>
-                                <th>Status</th>
-                                <th>Cover Letter</th>
-                                <th>Job Summary</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                `;
-
-                processedJobs.forEach(job => {
-                    const coverLetterPreview = job.cover_letter ? 
-                        `<div class="cover-letter">${job.cover_letter.substring(0, 100)}...</div>` : 
-                        '<span style="opacity: 0.5;">Not generated</span>';
-                    
-                    const jobSummaryPreview = job.job_summary ? 
-                        `<div class="job-summary">${job.job_summary.substring(0, 100)}...</div>` : 
-                        '<span style="opacity: 0.5;">Not generated</span>';
-                    
-                    tableHTML += `
-                        <tr>
-                            <td class="job-title">${job.job_title || 'N/A'}</td>
-                            <td class="employer">${job.employer || 'N/A'}</td>
-                            <td>
-                                <span style="color: ${job.processing_status === 'completed' ? '#00ff88' : '#ff6b6b'}">
-                                    ${job.processing_status || 'N/A'}
-                                </span>
-                            </td>
-                            <td>${coverLetterPreview}</td>
-                            <td>${jobSummaryPreview}</td>
-                        </tr>
-                    `;
-                });
-
-                tableHTML += '</tbody></table>';
-                processedJobsTable.innerHTML = tableHTML;
-            }
-
-            displayTaskStatus(statusData) {
-                const taskStatusTable = document.getElementById('taskStatusTable');
-                
-                if (!statusData) {
-                    taskStatusTable.innerHTML = '<p style="text-align: center; opacity: 0.7;">No active tasks</p>';
-                    return;
-                }
-
-                let statusHTML = `
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Status</th>
-                                <th>Pipeline Task ID</th>
-                                <th>Service 1 Task ID</th>
-                                <th>Service 2 Task ID</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>
-                                    <span style="color: ${statusData.status === 'completed' ? '#00ff88' : '#00d4ff'}">
-                                        ${statusData.status || 'N/A'}
-                                    </span>
-                                </td>
-                                <td class="run-id">${statusData.pipeline_task_id || 'N/A'}</td>
-                                <td class="run-id">${statusData.service1_task_id || 'N/A'}</td>
-                                <td class="run-id">${statusData.service2_task_id || 'N/A'}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                `;
-                
-                taskStatusTable.innerHTML = statusHTML;
-            }
-
-            showStatus(text, progress) {
-                document.getElementById('statusSection').style.display = 'block';
-                document.getElementById('statusText').textContent = text;
-                document.getElementById('progressFill').style.width = `${progress}%`;
-            }
-
-            hideStatus() {
-                document.getElementById('statusSection').style.display = 'none';
-            }
-
-            showMessage(text, type) {
-                const messageSection = document.getElementById('messageSection');
-                const messageDiv = document.createElement('div');
-                messageDiv.className = type;
-                messageDiv.textContent = text;
-                
-                messageSection.appendChild(messageDiv);
-                
-                // Auto-remove message after 5 seconds
-                setTimeout(() => {
-                    if (messageDiv.parentNode) {
-                        messageDiv.parentNode.removeChild(messageDiv);
+                async loadProcessedJobs() {
+                    try {
+                        const response = await fetch('/api/processed-jobs');
+                        if (response.ok) {
+                            const data = await response.json();
+                            this.processedJobs = data.processed_jobs || [];
+                        }
+                    } catch (error) {
+                        console.error('Error loading processed jobs:', error);
                     }
-                }, 5000);
-            }
+                },
 
-            disableButton(buttonId, disabled) {
-                const button = document.getElementById(buttonId);
-                button.disabled = disabled;
-                if (disabled) {
-                    button.innerHTML = '<span class="loading"></span> Processing...';
-                } else {
-                    button.innerHTML = buttonId === 'runPipelineBtn' ? '🚀 Run AI Pipeline' : '🔄 Refresh Data';
+                updateStats() {
+                    this.stats.totalJobs = this.jobs.length;
+                    this.stats.processedJobs = this.processedJobs.length;
+                    this.stats.appliedJobs = this.jobs.filter(job => job.status === 'applied').length;
+                    this.stats.interviewJobs = this.jobs.filter(job => 
+                        job.status === 'first interview' || job.status === 'second interview'
+                    ).length;
+                },
+
+                getJobSummary(job) {
+                    if (!job) return null;
+                    
+                    const processed = this.processedJobs.find(pj => pj.job_id === job.id);
+                    return processed?.job_summary || null;
+                },
+
+                getStatusClasses(status) {
+                    const statusMap = {
+                        'new': 'status-new',
+                        'applied': 'status-applied',
+                        'first interview': 'status-interview',
+                        'second interview': 'status-interview',
+                        'rejected': 'status-rejected',
+                        'accepted': 'status-accepted'
+                    };
+                    return statusMap[status] || 'status-new';
+                },
+
+                formatDate(dateString) {
+                    if (!dateString) return 'Unknown';
+                    return new Date(dateString).toLocaleDateString();
+                },
+
+                openJobModal(job) {
+                    this.selectedJob = job;
+                },
+
+                async updateJobStatus(jobId, newStatus) {
+                    try {
+                        const response = await fetch(`/api/jobs/${jobId}/status`, {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ status: newStatus })
+                        });
+                        
+                        if (response.ok) {
+                            // Update local job status
+                            const job = this.jobs.find(j => j.id === jobId);
+                            if (job) {
+                                job.status = newStatus;
+                                this.updateStats();
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error updating job status:', error);
+                    }
+                },
+
+                async deleteJob(jobId) {
+                    if (!confirm('Are you sure you want to delete this job?')) return;
+                    
+                    try {
+                        const response = await fetch(`/api/jobs/${jobId}`, {
+                            method: 'DELETE'
+                        });
+                        
+                        if (response.ok) {
+                            // Remove from local arrays
+                            this.jobs = this.jobs.filter(j => j.id !== jobId);
+                            this.processedJobs = this.processedJobs.filter(pj => pj.job_id !== jobId);
+                            this.updateStats();
+                            
+                            if (this.selectedJob && this.selectedJob.id === jobId) {
+                                this.selectedJob = null;
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error deleting job:', error);
+                    }
+                },
+
+                async startPipeline() {
+                    try {
+                        this.loading = true;
+                        this.showPipelineConfig = false;
+                        
+                        const response = await fetch('/api/pipeline/start', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(this.pipelineConfig)
+                        });
+                        
+                        if (response.ok) {
+                            const result = await response.json();
+                            alert(`Pipeline started successfully! Run ID: ${result.run_id}`);
+                            // Refresh jobs after a delay to allow pipeline to start
+                            setTimeout(() => this.loadJobs(), 5000);
+                        } else {
+                            const error = await response.json();
+                            alert(`Error starting pipeline: ${error.detail}`);
+                        }
+                    } catch (error) {
+                        console.error('Error starting pipeline:', error);
+                        alert('Error starting pipeline. Please try again.');
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+
+                refreshJobs() {
+                    this.loadJobs();
+                    this.loadProcessedJobs();
                 }
             }
         }
-
-        // Initialize the application
-        document.addEventListener('DOMContentLoaded', () => {
-            new AIPipelineManager();
-        });
     </script>
 </body>
 </html>

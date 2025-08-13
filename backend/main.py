@@ -769,6 +769,90 @@ async def health_check():
     }
 
 
+class JobStatusUpdate(BaseModel):
+    status: str
+
+
+class JobDelete(BaseModel):
+    job_id: int
+
+
+@app.put("/api/jobs/{job_id}/status")
+async def update_job_status(job_id: int, status_update: JobStatusUpdate):
+    """Update the status of a specific job"""
+    conn = get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+
+            # Update job status
+            cursor.execute("""
+                UPDATE jobs 
+                SET status = %s, updated_at = CURRENT_TIMESTAMP 
+                WHERE id = %s
+                RETURNING id
+            """, (status_update.status, job_id))
+
+            result = cursor.fetchone()
+            if not result:
+                cursor.close()
+                conn.close()
+                raise HTTPException(status_code=404, detail="Job not found")
+
+            conn.commit()
+            cursor.close()
+            conn.close()
+
+            return {"message": "Job status updated successfully", "job_id": job_id, "new_status": status_update.status}
+
+        except Exception as e:
+            print(f"Error updating job status: {e}")
+            if conn:
+                conn.close()
+            raise HTTPException(
+                status_code=500, detail="Internal server error")
+
+    raise HTTPException(status_code=500, detail="Database connection failed")
+
+
+@app.delete("/api/jobs/{job_id}")
+async def delete_job(job_id: int):
+    """Delete a specific job and its processed data"""
+    conn = get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+
+            # First delete from processed_jobs if exists
+            cursor.execute(
+                "DELETE FROM processed_jobs WHERE job_id = %s", (job_id,))
+
+            # Then delete from jobs
+            cursor.execute(
+                "DELETE FROM jobs WHERE id = %s RETURNING id", (job_id,))
+
+            result = cursor.fetchone()
+            if not result:
+                cursor.close()
+                conn.close()
+                raise HTTPException(status_code=404, detail="Job not found")
+
+            conn.commit()
+            cursor.close()
+            conn.close()
+
+            return {"message": "Job deleted successfully", "job_id": job_id}
+
+        except Exception as e:
+            print(f"Error deleting job: {e}")
+            if conn:
+                conn.close()
+            raise HTTPException(
+                status_code=500, detail="Internal server error")
+
+    raise HTTPException(status_code=500, detail="Database connection failed")
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
