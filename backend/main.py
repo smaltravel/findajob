@@ -119,11 +119,6 @@ def init_database():
         try:
             cursor = conn.cursor()
 
-            # Drop existing tables to recreate with correct schema
-            cursor.execute("DROP TABLE IF EXISTS processed_jobs CASCADE")
-            cursor.execute("DROP TABLE IF EXISTS jobs CASCADE")
-            cursor.execute("DROP TABLE IF EXISTS tasks CASCADE")
-
             # Create tasks table first (referenced by other tables)
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS tasks (
