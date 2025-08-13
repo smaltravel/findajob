@@ -688,9 +688,6 @@
                     googleModel: 'gemini-2.5-flash-lite',
                     googleApiKey: '',
                     cvContent: '',
-                    fileName: '',
-                    fileSize: '',
-                    fileData: null
                 },
                 stats: {
                     totalJobs: 0,
@@ -877,9 +874,7 @@
                             location: this.pipelineConfig.location.trim(),
                             max_jobs: parseInt(this.pipelineConfig.maxJobs) || 10,
                             seniority_level: parseInt(this.pipelineConfig.seniority) || 3,
-                            cv_content: this.pipelineConfig.cvContent.trim(),
-                            file_name: this.pipelineConfig.fileName,
-                            file_size: this.pipelineConfig.fileSize,
+                            cv_content: JSON.parse(this.pipelineConfig.cvContent.trim()),
                             ai_provider: this.pipelineConfig.aiProvider,
                             ollama_model: this.pipelineConfig.ollamaModel,
                             ollama_url: this.pipelineConfig.ollamaUrl,
@@ -887,31 +882,14 @@
                             google_api_key: this.pipelineConfig.googleApiKey
                         };
                         
-                        let response;
+                        let response = await fetch('/api/pipeline', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(config)
+                        });
                         
-                        // If file is uploaded, create FormData to send file
-                        if (this.pipelineConfig.fileData) {
-                            const formData = new FormData();
-                            formData.append('file', this.pipelineConfig.fileData);
-                            
-                            // Add other config as JSON string
-                            formData.append('config', JSON.stringify(config));
-                            
-                            // Send FormData instead of JSON
-                            response = await fetch('/api/pipeline/start', {
-                                method: 'POST',
-                                body: formData
-                            });
-                        } else {
-                            // Send JSON for text-only content
-                            response = await fetch('/api/pipeline/start', {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json'
-                                },
-                                body: JSON.stringify(config)
-                            });
-                        }
                         
                         if (response.ok) {
                             const result = await response.json();
@@ -1040,7 +1018,7 @@
                         this.pipelineConfig.fileData = file;
 
                         // For text files, try to extract content
-                        if (file.type === 'text/plain') {
+                        if (file.type === 'application/json') {
                             const text = await this.readTextFile(file);
                             this.pipelineConfig.cvContent = text;
                         } else {
