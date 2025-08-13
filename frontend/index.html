@@ -119,6 +119,95 @@
             margin-bottom: 15px;
         }
 
+        /* CV Upload Section Styles */
+        .cv-upload-section {
+            width: 100%;
+        }
+
+        .cv-input-tabs {
+            display: flex;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .cv-tab {
+            flex: 1;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: #ffffff;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+        }
+
+        .cv-tab.active {
+            background: #00d4ff;
+            color: #000000;
+        }
+
+        .cv-tab:hover:not(.active) {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .cv-tab-content {
+            display: none;
+        }
+
+        .cv-tab-content.active {
+            display: block;
+        }
+
+        .cv-file-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+            cursor: pointer;
+        }
+
+        .cv-file-input::-webkit-file-upload-button {
+            background: #00d4ff;
+            color: #000000;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .cv-file-info {
+            margin-top: 10px;
+            padding: 8px;
+            background: rgba(0, 212, 255, 0.1);
+            border-radius: 6px;
+            font-size: 0.9rem;
+            color: #00d4ff;
+        }
+
+        .cv-textarea {
+            width: 100%;
+            min-height: 120px;
+            padding: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+            font-size: 0.9rem;
+            font-family: 'Courier New', monospace;
+            resize: vertical;
+        }
+
+        .cv-textarea:focus {
+            outline: none;
+            border-color: #00d4ff;
+            box-shadow: 0 0 10px rgba(0, 212, 255, 0.3);
+        }
+
         .controls {
             display: flex;
             gap: 20px;
@@ -424,8 +513,22 @@
                 </div>
                 
                 <div class="config-group">
-                    <label for="cvPath">CV JSON Path</label>
-                    <input type="text" id="cvPath" placeholder="e.g., /path/to/cv.json" value="/workspace/cv.json">
+                    <label for="cvContent">CV Content</label>
+                    <div class="cv-upload-section">
+                        <div class="cv-input-tabs">
+                            <button type="button" class="cv-tab active" data-cv-tab="upload">📁 Upload File</button>
+                            <button type="button" class="cv-tab" data-cv-tab="manual">✏️ Manual Input</button>
+                        </div>
+                        
+                        <div id="cvUploadTab" class="cv-tab-content active">
+                            <input type="file" id="cvFile" accept=".json" class="cv-file-input">
+                            <div class="cv-file-info" id="cvFileInfo"></div>
+                        </div>
+                        
+                        <div id="cvManualTab" class="cv-tab-content">
+                            <textarea id="cvTextarea" placeholder="Paste your CV content as JSON here...&#10;&#10;Example:&#10;{&#10;  &quot;name&quot;: &quot;John Doe&quot;,&#10;  &quot;title&quot;: &quot;Senior Developer&quot;,&#10;  &quot;about&quot;: &quot;Experienced developer...&quot;,&#10;  &quot;highlights&quot;: [&quot;Python&quot;, &quot;JavaScript&quot;],&#10;  &quot;experience&quot;: [...]&#10;}"></textarea>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -515,6 +618,7 @@
                 this.apiBase = '/api';
                 this.currentRunId = null;
                 this.statusCheckInterval = null;
+                this.currentCvContent = null;
                 this.init();
             }
 
@@ -527,6 +631,17 @@
                 document.querySelectorAll('.tab').forEach(tab => {
                     tab.addEventListener('click', () => this.switchTab(tab.dataset.tab));
                 });
+
+                // CV tab switching
+                document.querySelectorAll('.cv-tab').forEach(tab => {
+                    tab.addEventListener('click', () => this.switchCvTab(tab.dataset.cvTab));
+                });
+
+                // CV file upload handling
+                document.getElementById('cvFile').addEventListener('change', (e) => this.handleCvFileUpload(e));
+
+                // CV textarea change handling
+                document.getElementById('cvTextarea').addEventListener('input', () => this.handleCvTextareaChange());
 
                 this.refreshData();
                 
@@ -557,6 +672,66 @@
                 document.getElementById(`${tabName}Tab`).classList.add('active');
             }
 
+            switchCvTab(tabName) {
+                // Remove active class from all CV tabs and contents
+                document.querySelectorAll('.cv-tab').forEach(tab => tab.classList.remove('active'));
+                document.querySelectorAll('.cv-tab-content').forEach(content => content.classList.remove('active'));
+                
+                // Add active class to selected CV tab and content
+                document.querySelector(`[data-cv-tab="${tabName}"]`).classList.add('active');
+                document.getElementById(`cv${tabName.charAt(0).toUpperCase() + tabName.slice(1)}Tab`).classList.add('active');
+            }
+
+            handleCvFileUpload(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const cvContent = JSON.parse(e.target.result);
+                        this.currentCvContent = cvContent;
+                        
+                        // Update file info
+                        const fileInfo = document.getElementById('cvFileInfo');
+                        fileInfo.innerHTML = `✅ File loaded: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+                        fileInfo.style.color = '#00d4ff';
+                        
+                        // Also populate the textarea for manual editing
+                        document.getElementById('cvTextarea').value = JSON.stringify(cvContent, null, 2);
+                    } catch (error) {
+                        const fileInfo = document.getElementById('cvFileInfo');
+                        fileInfo.innerHTML = `❌ Error: Invalid JSON file`;
+                        fileInfo.style.color = '#ff6b6b';
+                        this.currentCvContent = null;
+                    }
+                };
+                reader.readAsText(file);
+            }
+
+            handleCvTextareaChange() {
+                const textareaContent = document.getElementById('cvTextarea').value.trim();
+                if (textareaContent) {
+                    try {
+                        this.currentCvContent = JSON.parse(textareaContent);
+                        // Clear file info since we're now using manual input
+                        const fileInfo = document.getElementById('cvFileInfo');
+                        fileInfo.innerHTML = `✅ Manual input updated`;
+                        fileInfo.style.color = '#00d4ff';
+                    } catch (error) {
+                        this.currentCvContent = null;
+                        const fileInfo = document.getElementById('cvFileInfo');
+                        fileInfo.innerHTML = `❌ Invalid JSON format`;
+                        fileInfo.style.color = '#ff6b6b';
+                    }
+                } else {
+                    this.currentCvContent = null;
+                    const fileInfo = document.getElementById('cvFileInfo');
+                    fileInfo.innerHTML = `No CV content provided`;
+                    fileInfo.style.color = 'rgba(255, 255, 255, 0.6)';
+                }
+            }
+
             getPipelineConfig() {
                 return {
                     keywords: document.getElementById('keywords').value,
@@ -564,12 +739,32 @@
                     seniority: parseInt(document.getElementById('seniority').value),
                     max_jobs: parseInt(document.getElementById('maxJobs').value),
                     ai_provider: document.getElementById('aiProvider').value,
-                    cv_path: document.getElementById('cvPath').value,
+                    cv_content: this.getCvContent(),
                     ollama_model: document.getElementById('ollamaModel').value,
                     ollama_url: document.getElementById('ollamaUrl').value,
                     google_model: document.getElementById('googleModel').value,
                     google_api_key: document.getElementById('googleApiKey').value
                 };
+            }
+
+            getCvContent() {
+                // First try to get from file upload
+                if (this.currentCvContent) {
+                    return this.currentCvContent;
+                }
+                
+                // Then try to get from textarea
+                const textareaContent = document.getElementById('cvTextarea').value.trim();
+                if (textareaContent) {
+                    try {
+                        return JSON.parse(textareaContent);
+                    } catch (error) {
+                        console.error('Invalid JSON in textarea:', error);
+                        return null;
+                    }
+                }
+                
+                return null;
             }
 
             async runPipeline() {

@@ -67,7 +67,8 @@ class PipelineConfig(BaseModel):
     max_jobs: int = 10
     seniority: int = 3
     ai_provider: str = "template"
-    cv_path: str = "/workspace/cv.json"
+    # CV data as JSON object instead of file path
+    cv_content: Optional[dict] = None
     ollama_model: str = "deepseek-r1:7b"
     ollama_url: str = "http://localhost:11434"
     google_model: str = "gemini-2.5-flash-lite"
@@ -286,7 +287,6 @@ async def run_pipeline(config: PipelineConfig = Body(...)):
     print(f"   Max Jobs: {config.max_jobs}")
     print(f"   Seniority: {config.seniority}")
     print(f"   AI Provider: {config.ai_provider}")
-    print(f"   CV Path: {config.cv_path}")
 
     # Create initial task record
     conn = get_db_connection()
@@ -308,7 +308,7 @@ async def run_pipeline(config: PipelineConfig = Body(...)):
         run_id, config.keywords, config.location, config.max_jobs, config.seniority,
         config.ai_provider, config.google_model if config.ai_provider == "google" else config.ollama_model,
         config.ollama_url if config.ai_provider == "ollama" else "http://localhost:11434",
-        config.google_api_key, 120, 0.7)
+        config.google_api_key, 120, 0.7, config.cv_content)
     print(
         f"Started Celery pipeline task: {pipeline_task.id} for run_id: {run_id}")
 
@@ -388,11 +388,11 @@ async def monitor_pipeline(run_id: str):
                             service2_task = continue_pipeline.delay(
                                 run_id, jobs_found, stored_config.ai_provider, stored_config.google_model if stored_config.ai_provider == "google" else stored_config.ollama_model,
                                 stored_config.ollama_url if stored_config.ai_provider == "ollama" else "http://localhost:11434",
-                                stored_config.google_api_key, 120, 0.7)
+                                stored_config.google_api_key, 120, 0.7, stored_config.cv_content)
                         else:
                             # Fallback to default configuration
                             service2_task = continue_pipeline.delay(
-                                run_id, jobs_found, "ollama", "deepseek-r1:7b", "http://localhost:11434", None, 120, 0.7)
+                                run_id, jobs_found, "ollama", "deepseek-r1:7b", "http://localhost:11434", None, 120, 0.7, None)
                         pipeline_task.service2_task_id = service2_task.id
                         pipeline_task.status = "service2_started"
                         print(

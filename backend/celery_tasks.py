@@ -287,7 +287,7 @@ def crawl_jobs(self, run_id: str, keywords: str = "python developer", location: 
 
 
 @celery_app.task(bind=True, name="service_2.process_jobs_with_ai")
-def process_jobs_with_ai(self, run_id: str, ai_provider: str = "ollama", ai_model: str = "deepseek-r1:7b", ai_base_url: str = "http://localhost:11434", ai_api_key: str = None, ai_timeout: int = 120, ai_temperature: float = 0.7):
+def process_jobs_with_ai(self, run_id: str, ai_provider: str = "ollama", ai_model: str = "deepseek-r1:7b", ai_base_url: str = "http://localhost:11434", ai_api_key: str = None, ai_timeout: int = 120, ai_temperature: float = 0.7, cv_content: dict = None):
     """Service 2: Process crawled jobs using AI to generate cover letters and summaries"""
     try:
         print(f"🤖 Starting Service 2 (AI Job Processor) for run_id: {run_id}")
@@ -348,6 +348,13 @@ def process_jobs_with_ai(self, run_id: str, ai_provider: str = "ollama", ai_mode
                       "run_id": run_id}
             )
             raise e
+
+        # Set CV context in AI provider if available
+        if cv_content:
+            ai_provider_instance.set_user_cv(cv_content)
+            print("✅ CV context set in AI provider")
+        else:
+            print("⚠️  Warning: No CV data available, AI processing may fail")
 
         # Initialize job processor
         processor = PostgreSQLJobProcessor(DB_CONFIG, ai_provider_instance)
@@ -460,7 +467,7 @@ def process_jobs_with_ai(self, run_id: str, ai_provider: str = "ollama", ai_mode
 
 
 @celery_app.task(bind=True, name="pipeline.run_complete_pipeline")
-def run_complete_pipeline(self, run_id: str, keywords: str = "python developer", location: str = "remote", max_jobs: int = 10, seniority: int = 3, ai_provider: str = "ollama", ai_model: str = "deepseek-r1:7b", ai_base_url: str = "http://localhost:11434", ai_api_key: str = None, ai_timeout: int = 120, ai_temperature: float = 0.7):
+def run_complete_pipeline(self, run_id: str, keywords: str = "python developer", location: str = "remote", max_jobs: int = 10, seniority: int = 3, ai_provider: str = "ollama", ai_model: str = "deepseek-r1:7b", ai_base_url: str = "http://localhost:11434", ai_api_key: str = None, ai_timeout: int = 120, ai_temperature: float = 0.7, cv_content: dict = None):
     """Run the complete pipeline: Service 1 (Job Crawling) -> Service 2 (Password Generation) using task chaining"""
     try:
         print(f"🚀 Starting complete pipeline for run_id: {run_id}")
@@ -485,6 +492,9 @@ def run_complete_pipeline(self, run_id: str, keywords: str = "python developer",
         # The backend will need to handle the chaining
         service1_task = crawl_jobs.delay(
             run_id, keywords, location, max_jobs, seniority)
+
+        # Store CV content for later use in the pipeline
+        # Note: CV content will be passed through the backend monitoring logic
 
         # Update task status to show Service 1 is running
         self.update_state(
@@ -516,7 +526,7 @@ def run_complete_pipeline(self, run_id: str, keywords: str = "python developer",
 
 
 @celery_app.task(bind=True, name="pipeline.continue_pipeline")
-def continue_pipeline(self, run_id: str, jobs_found: int, ai_provider: str = "ollama", ai_model: str = "deepseek-r1:7b", ai_base_url: str = "http://localhost:11434", ai_api_key: str = None, ai_timeout: int = 120, ai_temperature: float = 0.7):
+def continue_pipeline(self, run_id: str, jobs_found: int, ai_provider: str = "ollama", ai_model: str = "deepseek-r1:7b", ai_base_url: str = "http://localhost:11434", ai_api_key: str = None, ai_timeout: int = 120, ai_temperature: float = 0.7, cv_content: dict = None):
     """Continue pipeline after Service 1 completes - called by Service 1 callback"""
     try:
         print(
@@ -544,7 +554,7 @@ def continue_pipeline(self, run_id: str, jobs_found: int, ai_provider: str = "ol
 
         # Call Service 2 (AI Job Processor)
         service2_task = process_jobs_with_ai.delay(
-            run_id, ai_provider, ai_model, ai_base_url, ai_api_key, ai_timeout, ai_temperature)
+            run_id, ai_provider, ai_model, ai_base_url, ai_api_key, ai_timeout, ai_temperature, cv_content)
 
         # Update task status
         self.update_state(
