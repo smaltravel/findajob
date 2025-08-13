@@ -76,6 +76,7 @@ class PipelineConfig(BaseModel):
 
 # In-memory storage for pipeline task tracking
 pipeline_tasks: Dict[str, PipelineTask] = {}
+pipeline_configs: Dict[str, PipelineConfig] = {}
 
 
 def get_db_connection():
@@ -302,18 +303,24 @@ async def run_pipeline(config: PipelineConfig = Body(...)):
         except Exception as e:
             print(f"Error creating task: {e}")
 
-    # Start the Celery pipeline task with crawling parameters
+    # Start the Celery pipeline task with crawling parameters and AI configuration
     pipeline_task = run_complete_pipeline.delay(
-        run_id, config.keywords, config.location, config.max_jobs, config.seniority)
+        run_id, config.keywords, config.location, config.max_jobs, config.seniority,
+        config.ai_provider, config.google_model if config.ai_provider == "google" else config.ollama_model,
+        config.ollama_url if config.ai_provider == "ollama" else "http://localhost:11434",
+        config.google_api_key, 120, 0.7)
     print(
         f"Started Celery pipeline task: {pipeline_task.id} for run_id: {run_id}")
 
-    # Store pipeline task info
+    # Store pipeline task info and configuration
     pipeline_tasks[run_id] = PipelineTask(
         run_id=run_id,
         pipeline_task_id=pipeline_task.id,
         status="started"
     )
+
+    # Store the configuration for later use
+    pipeline_configs[run_id] = config
 
     # Start background task to monitor and continue pipeline
     asyncio.create_task(monitor_pipeline(run_id))
@@ -376,8 +383,16 @@ async def monitor_pipeline(run_id: str):
                         print(
                             f"Service 1 completed for {run_id}, starting Service 2 (AI Job Processor)")
                         # Start Service 2 (AI Job Processor)
-                        service2_task = continue_pipeline.delay(
-                            run_id, jobs_found)
+                        stored_config = pipeline_configs.get(run_id)
+                        if stored_config:
+                            service2_task = continue_pipeline.delay(
+                                run_id, jobs_found, stored_config.ai_provider, stored_config.google_model if stored_config.ai_provider == "google" else stored_config.ollama_model,
+                                stored_config.ollama_url if stored_config.ai_provider == "ollama" else "http://localhost:11434",
+                                stored_config.google_api_key, 120, 0.7)
+                        else:
+                            # Fallback to default configuration
+                            service2_task = continue_pipeline.delay(
+                                run_id, jobs_found, "ollama", "deepseek-r1:7b", "http://localhost:11434", None, 120, 0.7)
                         pipeline_task.service2_task_id = service2_task.id
                         pipeline_task.status = "service2_started"
                         print(

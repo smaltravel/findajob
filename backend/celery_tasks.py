@@ -287,10 +287,16 @@ def crawl_jobs(self, run_id: str, keywords: str = "python developer", location: 
 
 
 @celery_app.task(bind=True, name="service_2.process_jobs_with_ai")
-def process_jobs_with_ai(self, run_id: str):
+def process_jobs_with_ai(self, run_id: str, ai_provider: str = "ollama", ai_model: str = "deepseek-r1:7b", ai_base_url: str = "http://localhost:11434", ai_api_key: str = None, ai_timeout: int = 120, ai_temperature: float = 0.7):
     """Service 2: Process crawled jobs using AI to generate cover letters and summaries"""
     try:
         print(f"🤖 Starting Service 2 (AI Job Processor) for run_id: {run_id}")
+        print(f"   AI Provider: {ai_provider}")
+        print(f"   AI Model: {ai_model}")
+        print(f"   AI Base URL: {ai_base_url}")
+        print(f"   AI API Key: {'***' if ai_api_key else 'None'}")
+        print(f"   AI Timeout: {ai_timeout}")
+        print(f"   AI Temperature: {ai_temperature}")
 
         # Update task status
         self.update_state(
@@ -308,25 +314,25 @@ def process_jobs_with_ai(self, run_id: str):
 
         # Initialize AI provider
         try:
-            if AI_CONFIG["provider"] == "ollama":
-                ai_provider = OllamaProvider(
+            if ai_provider == "ollama":
+                ai_provider_instance = OllamaProvider(
                     AIProviderConfig(
-                        model=AI_CONFIG["model"],
-                        base_url=AI_CONFIG["base_url"],
-                        timeout=AI_CONFIG["timeout"],
-                        temperature=AI_CONFIG["temperature"]
+                        model=ai_model,
+                        base_url=ai_base_url,
+                        timeout=ai_timeout,
+                        temperature=ai_temperature
                     )
                 )
-            elif AI_CONFIG["provider"] == "google":
-                if not AI_CONFIG["api_key"]:
+            elif ai_provider == "google":
+                if not ai_api_key:
                     raise Exception(
                         "API key is required for Google AI provider")
-                ai_provider = GoogleAIProvider(
+                ai_provider_instance = GoogleAIProvider(
                     AIProviderConfig(
-                        model=AI_CONFIG["model"],
-                        api_key=AI_CONFIG["api_key"],
-                        timeout=AI_CONFIG["timeout"],
-                        temperature=AI_CONFIG["temperature"]
+                        model=ai_model,
+                        api_key=ai_api_key,
+                        timeout=ai_timeout,
+                        temperature=ai_temperature
                     )
                 )
             else:
@@ -334,7 +340,7 @@ def process_jobs_with_ai(self, run_id: str):
                     state="FAILURE",
                     meta={"status": "Unknown AI provider", "run_id": run_id}
                 )
-                raise Exception("Unknown AI provider")
+                raise Exception(f"Unknown AI provider: {ai_provider}")
         except Exception as e:
             self.update_state(
                 state="FAILURE",
@@ -344,7 +350,7 @@ def process_jobs_with_ai(self, run_id: str):
             raise e
 
         # Initialize job processor
-        processor = PostgreSQLJobProcessor(DB_CONFIG, ai_provider)
+        processor = PostgreSQLJobProcessor(DB_CONFIG, ai_provider_instance)
 
         try:
             # Connect to database
@@ -454,7 +460,7 @@ def process_jobs_with_ai(self, run_id: str):
 
 
 @celery_app.task(bind=True, name="pipeline.run_complete_pipeline")
-def run_complete_pipeline(self, run_id: str, keywords: str = "python developer", location: str = "remote", max_jobs: int = 10, seniority: int = 3):
+def run_complete_pipeline(self, run_id: str, keywords: str = "python developer", location: str = "remote", max_jobs: int = 10, seniority: int = 3, ai_provider: str = "ollama", ai_model: str = "deepseek-r1:7b", ai_base_url: str = "http://localhost:11434", ai_api_key: str = None, ai_timeout: int = 120, ai_temperature: float = 0.7):
     """Run the complete pipeline: Service 1 (Job Crawling) -> Service 2 (Password Generation) using task chaining"""
     try:
         print(f"🚀 Starting complete pipeline for run_id: {run_id}")
@@ -510,11 +516,17 @@ def run_complete_pipeline(self, run_id: str, keywords: str = "python developer",
 
 
 @celery_app.task(bind=True, name="pipeline.continue_pipeline")
-def continue_pipeline(self, run_id: str, jobs_found: int):
+def continue_pipeline(self, run_id: str, jobs_found: int, ai_provider: str = "ollama", ai_model: str = "deepseek-r1:7b", ai_base_url: str = "http://localhost:11434", ai_api_key: str = None, ai_timeout: int = 120, ai_temperature: float = 0.7):
     """Continue pipeline after Service 1 completes - called by Service 1 callback"""
     try:
         print(
             f"🔄 Continuing pipeline for run_id: {run_id} with {jobs_found} jobs found")
+        print(f"   AI Provider: {ai_provider}")
+        print(f"   AI Model: {ai_model}")
+        print(f"   AI Base URL: {ai_base_url}")
+        print(f"   AI API Key: {'***' if ai_api_key else 'None'}")
+        print(f"   AI Timeout: {ai_timeout}")
+        print(f"   AI Temperature: {ai_temperature}")
 
         # Update task status
         self.update_state(
@@ -531,7 +543,8 @@ def continue_pipeline(self, run_id: str, jobs_found: int):
         )
 
         # Call Service 2 (AI Job Processor)
-        service2_task = process_jobs_with_ai.delay(run_id)
+        service2_task = process_jobs_with_ai.delay(
+            run_id, ai_provider, ai_model, ai_base_url, ai_api_key, ai_timeout, ai_temperature)
 
         # Update task status
         self.update_state(

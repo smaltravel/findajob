@@ -1,9 +1,7 @@
 from .interface import AIProvider, AIProviderConfig, AIProviderError
-import google.generativeai as genai
+from google import genai
 from pydantic import BaseModel
-import json
 import logging
-from typing import Dict, Optional, List
 
 logger = logging.getLogger(__name__)
 
