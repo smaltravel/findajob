@@ -8,12 +8,11 @@ def get_task_status(task_id: str) -> str:
         if task.successful():
             return {
                 "status": task.status,
-                "exit_code": task.result,
             }
         else:
             return {
                 "status": task.status,
-                "exit_code": task.result,
+                "error": task.traceback,
             }
     else:
         return {
