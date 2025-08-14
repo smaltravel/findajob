@@ -54,9 +54,6 @@ services:
         condition: service_healthy
     networks:
       - findajob_network
-    volumes:
-      - ./scrapy:/workspace/scrapy
-      - ./tools:/app/tools
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
   # Celery Worker for processing tasks
@@ -78,9 +75,6 @@ services:
         condition: service_healthy
     networks:
       - findajob_network
-    volumes:
-      - ./scrapy:/workspace/scrapy
-      - ./tools:/app/tools
     command: celery -A celery_app worker --loglevel=info --concurrency=2
     restart: unless-stopped
 
