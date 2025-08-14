@@ -3,8 +3,8 @@ from sqlalchemy import ForeignKey, Integer, String, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from datetime import datetime
-from . import Base
-from .job import Job
+from app.models import Base
+from app.models.job import Job
 
 
 class Employer(Base):

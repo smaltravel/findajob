@@ -1,10 +1,10 @@
 from sqlalchemy import Integer, String, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
-from . import Base
-from .employer import Employer
-from .job_meta import JobMeta
-from .task import Task
+from app.models import Base
+from app.models.employer import Employer
+from app.models.job_meta import JobMeta
+from app.models.task import Task
 
 
 class Job(Base):

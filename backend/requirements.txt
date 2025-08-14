@@ -55,12 +55,14 @@ pyasn1==0.6.1
 pyasn1_modules==0.4.2
 pycparser==2.22
 pydantic==2.11.7
+pydantic-settings==2.10.1
 pydantic_core==2.33.2
 PyDispatcher==2.0.7
 pyee==13.0.0
 pyOpenSSL==25.1.0
 pyparsing==3.2.3
 python-dateutil==2.9.0.post0
+python-dotenv==1.1.1
 queuelib==1.8.0
 redis==6.4.0
 requests==2.32.4
