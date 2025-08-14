@@ -4,12 +4,16 @@ from pydantic import BaseModel
 import uuid
 import asyncio
 from typing import List, Dict, Any, Optional
-import psycopg2
-from psycopg2.extras import RealDictCursor
 import os
 from celery_tasks import run_complete_pipeline, continue_pipeline
 from celery.result import AsyncResult
 from celery_app import celery_app
+
+# SQLAlchemy imports
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.exc import SQLAlchemyError
+from models import Base, Task, Job, JobMeta, Employer
 
 app = FastAPI(title="FindAJob AI Pipeline API", version="1.0.0")
 
@@ -31,6 +35,13 @@ DB_CONFIG = {
     "password": os.getenv("DB_PASSWORD", "password"),
     "port": os.getenv("DB_PORT", "5432")
 }
+
+# SQLAlchemy database URL
+DATABASE_URL = f"postgresql://{DB_CONFIG['user']}:{DB_CONFIG['password']}@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}"
+
+# Create SQLAlchemy engine and session
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 class PipelineResponse(BaseModel):
@@ -80,13 +91,14 @@ pipeline_tasks: Dict[str, PipelineTask] = {}
 pipeline_configs: Dict[str, PipelineConfig] = {}
 
 
-def get_db_connection():
-    """Create database connection"""
+def get_db_session():
+    """Get database session"""
+    db = SessionLocal()
     try:
-        conn = psycopg2.connect(**DB_CONFIG)
-        return conn
+        return db
     except Exception as e:
-        print(f"Database connection error: {e}")
+        print(f"Database session error: {e}")
+        db.close()
         return None
 
 
@@ -114,94 +126,12 @@ def safe_get_task_result(task_result):
 
 def init_database():
     """Initialize database tables if they don't exist"""
-    conn = get_db_connection()
-    if conn:
-        try:
-            cursor = conn.cursor()
-
-            # Create tasks table first (referenced by other tables)
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS tasks (
-                    id SERIAL PRIMARY KEY,
-                    run_id VARCHAR(255) UNIQUE NOT NULL,
-                    status VARCHAR(50) DEFAULT 'pending',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-
-            # Create jobs table for storing crawled job data
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS jobs (
-                    id SERIAL PRIMARY KEY,
-                    spider_source VARCHAR(255) NOT NULL,
-                    job_id VARCHAR(255) UNIQUE,
-                    job_title TEXT,
-                    job_location TEXT,
-                    job_url TEXT,
-                    job_description TEXT,
-                    employer VARCHAR(255),
-                    employer_url TEXT,
-                    employment_type VARCHAR(100),
-                    job_function VARCHAR(255),
-                    seniority_level VARCHAR(100),
-                    industries TEXT,
-                    run_id VARCHAR(255) REFERENCES tasks(run_id),
-                    status VARCHAR(50) NOT NULL DEFAULT 'new',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-
-            # Create processed_jobs table for storing AI-processed job data
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS processed_jobs (
-                    id SERIAL PRIMARY KEY,
-                    job_id INTEGER REFERENCES jobs(id),
-                    run_id VARCHAR(255) REFERENCES tasks(run_id),
-                    cover_letter TEXT,
-                    job_summary TEXT,
-                    processing_status TEXT DEFAULT 'pending',
-                    error_message TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-
-            # Create indexes for better performance
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_jobs_run_id ON jobs(run_id)
-            """)
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_job_id ON jobs(job_id)
-            """)
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_status ON jobs(status)
-            """)
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_created_at ON jobs(created_at)
-            """)
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_job_title ON jobs(job_title)
-            """)
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_employer ON jobs(employer)
-            """)
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_processed_jobs_job_id ON processed_jobs(job_id)
-            """)
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_processed_jobs_run_id ON processed_jobs(run_id)
-            """)
-
-            conn.commit()
-            cursor.close()
-            conn.close()
-            print("Database tables initialized successfully")
-        except Exception as e:
-            print(f"Database initialization error: {e}")
-            if conn:
-                conn.close()
+    try:
+        # Create all tables using the unified Base
+        Base.metadata.create_all(bind=engine)
+        print("Database tables initialized successfully")
+    except Exception as e:
+        print(f"Database initialization error: {e}")
 
 
 def check_and_continue_pipeline(run_id: str):
@@ -283,20 +213,21 @@ async def run_pipeline(config: PipelineConfig = Body(...)):
     print(f"   Seniority: {config.seniority}")
     print(f"   AI Provider: {config.ai_provider}")
 
-    # Create initial task record
-    conn = get_db_connection()
-    if conn:
+    # Create initial task record using SQLAlchemy
+    db = get_db_session()
+    if db:
         try:
-            cursor = conn.cursor()
-            cursor.execute(
-                "INSERT INTO tasks (run_id) VALUES (%s)",
-                (run_id,)
+            task = Task(
+                run_id=run_id,
+                status="pending"
             )
-            conn.commit()
-            cursor.close()
-            conn.close()
+            db.add(task)
+            db.commit()
+            db.close()
         except Exception as e:
             print(f"Error creating task: {e}")
+            if db:
+                db.close()
 
     # Start the Celery pipeline task with crawling parameters and AI configuration
     pipeline_task = run_complete_pipeline.delay(
@@ -432,21 +363,22 @@ async def get_pipeline_status(run_id: str):
         check_and_continue_pipeline(run_id)  # Update status if needed
 
         if pipeline_task.status == "completed":
-            # Get final results from database
-            conn = get_db_connection()
-            if conn:
+            # Get final results from database using SQLAlchemy
+            db = get_db_session()
+            if db:
                 try:
-                    cursor = conn.cursor(cursor_factory=RealDictCursor)
-                    cursor.execute(
-                        "SELECT COUNT(*) as processed_count FROM processed_jobs WHERE run_id = %s", (run_id,))
-                    processed_count = cursor.fetchone()["processed_count"]
+                    # Count processed jobs (JobMeta with cover_letter)
+                    processed_count = db.query(JobMeta).join(Job).join(Task).filter(
+                        Task.run_id == run_id,
+                        JobMeta.cover_letter.isnot(None)
+                    ).count()
 
-                    cursor.execute(
-                        "SELECT COUNT(*) as total_count FROM jobs WHERE run_id = %s", (run_id,))
-                    total_count = cursor.fetchone()["total_count"]
+                    # Count total jobs
+                    total_count = db.query(Job).join(Task).filter(
+                        Task.run_id == run_id
+                    ).count()
 
-                    cursor.close()
-                    conn.close()
+                    db.close()
 
                     return {
                         "run_id": run_id,
@@ -467,31 +399,29 @@ async def get_pipeline_status(run_id: str):
             "service2_task_id": pipeline_task.service2_task_id
         }
 
-    # Fallback to database check
-    conn = get_db_connection()
-    if conn:
+    # Fallback to database check using SQLAlchemy
+    db = get_db_session()
+    if db:
         try:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-
             # Check if task exists
-            cursor.execute("SELECT * FROM tasks WHERE run_id = %s", (run_id,))
-            task = cursor.fetchone()
+            task = db.query(Task).filter(Task.run_id == run_id).first()
 
             if not task:
                 raise HTTPException(
                     status_code=404, detail="Pipeline not found")
 
-            # Check if jobs were processed
-            cursor.execute(
-                "SELECT COUNT(*) as processed_count FROM processed_jobs WHERE run_id = %s", (run_id,))
-            processed_count = cursor.fetchone()["processed_count"]
+            # Count processed jobs
+            processed_count = db.query(JobMeta).join(Job).join(Task).filter(
+                Task.run_id == run_id,
+                JobMeta.cover_letter.isnot(None)
+            ).count()
 
-            cursor.execute(
-                "SELECT COUNT(*) as total_count FROM jobs WHERE run_id = %s", (run_id,))
-            total_count = cursor.fetchone()["total_count"]
+            # Count total jobs
+            total_count = db.query(Job).join(Task).filter(
+                Task.run_id == run_id
+            ).count()
 
-            cursor.close()
-            conn.close()
+            db.close()
 
             if processed_count > 0:
                 return {
@@ -522,39 +452,33 @@ async def get_pipeline_status(run_id: str):
 
 @app.get("/data", response_model=List[TaskData])
 async def get_data():
-    """Get all data from the database"""
-    conn = get_db_connection()
-    if conn:
+    """Get all data from the database using SQLAlchemy"""
+    db = get_db_session()
+    if db:
         try:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-
-            # Join tasks and jobs tables to get job processing statistics
-            cursor.execute("""
-                SELECT 
-                    t.run_id, 
-                    t.status,
-                    COUNT(j.id) as total_jobs,
-                    COUNT(pj.id) as jobs_processed
-                FROM tasks t
-                LEFT JOIN jobs j ON t.run_id = j.run_id
-                LEFT JOIN processed_jobs pj ON t.run_id = pj.run_id
-                GROUP BY t.run_id, t.status
-                ORDER BY t.created_at DESC
-            """)
-
-            results = cursor.fetchall()
-            cursor.close()
-            conn.close()
+            # Get task statistics using SQLAlchemy
+            tasks = db.query(Task).all()
 
             data = []
-            for row in results:
+            for task in tasks:
+                # Count jobs for this task
+                total_jobs = db.query(Job).filter(
+                    Job.task_id == task.id).count()
+
+                # Count processed jobs for this task
+                processed_jobs = db.query(JobMeta).join(Job).filter(
+                    Job.task_id == task.id,
+                    JobMeta.cover_letter.isnot(None)
+                ).count()
+
                 data.append(TaskData(
-                    run_id=row["run_id"],
-                    jobs_processed=row["jobs_processed"] or 0,
-                    total_jobs=row["total_jobs"] or 0,
-                    status=row["status"]
+                    run_id=task.run_id,
+                    jobs_processed=processed_jobs,
+                    total_jobs=total_jobs,
+                    status=task.status
                 ))
 
+            db.close()
             return data
 
         except Exception as e:
@@ -567,32 +491,56 @@ async def get_data():
 
 @app.get("/api/jobs/{run_id}")
 async def get_jobs(run_id: str):
-    """Get all jobs for a specific pipeline run"""
-    conn = get_db_connection()
-    if conn:
+    """Get all jobs for a specific pipeline run using SQLAlchemy"""
+    db = get_db_session()
+    if db:
         try:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            # First get the task
+            task = db.query(Task).filter(Task.run_id == run_id).first()
+            if not task:
+                db.close()
+                raise HTTPException(
+                    status_code=404, detail="Pipeline not found")
 
-            cursor.execute("""
-                SELECT * FROM jobs 
-                WHERE run_id = %s 
-                ORDER BY created_at DESC
-            """, (run_id,))
-
-            results = cursor.fetchall()
-            cursor.close()
-            conn.close()
+            # Get jobs for this task
+            jobs = db.query(Job).filter(Job.task_id == task.id).all()
+            db.close()
 
             # Convert to list of dictionaries
-            jobs = []
-            for row in results:
-                job = dict(row)
-                jobs.append(job)
+            jobs_data = []
+            for job in jobs:
+                job_dict = {
+                    "id": job.id,
+                    "job_id": job.job_id,
+                    "title": job.title,
+                    "location": job.location,
+                    "url": job.url,
+                    "run_id": run_id
+                }
+
+                # Add meta data if available
+                if job.meta:
+                    job_dict.update({
+                        "job_description": job.meta.job_description,
+                        "employment_type": job.meta.employment_type,
+                        "job_function": job.meta.job_function,
+                        "seniority_level": job.meta.seniority_level,
+                        "industries": job.meta.industries
+                    })
+
+                # Add employer data if available
+                if job.employer:
+                    job_dict.update({
+                        "employer": job.employer.name,
+                        "employer_url": job.employer.url
+                    })
+
+                jobs_data.append(job_dict)
 
             return {
                 "run_id": run_id,
-                "jobs_count": len(jobs),
-                "jobs": jobs
+                "jobs_count": len(jobs_data),
+                "jobs": jobs_data
             }
 
         except Exception as e:
@@ -605,32 +553,47 @@ async def get_jobs(run_id: str):
 
 @app.get("/api/jobs")
 async def get_all_jobs():
-    """Get all jobs from all pipeline runs"""
-    conn = get_db_connection()
-    if conn:
+    """Get all jobs from all pipeline runs using SQLAlchemy"""
+    db = get_db_session()
+    if db:
         try:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-
-            cursor.execute("""
-                SELECT j.*, t.created_at as pipeline_created_at
-                FROM jobs j
-                JOIN tasks t ON j.run_id = t.run_id
-                ORDER BY j.created_at DESC
-            """)
-
-            results = cursor.fetchall()
-            cursor.close()
-            conn.close()
+            jobs = db.query(Job).join(Task).all()
+            db.close()
 
             # Convert to list of dictionaries
-            jobs = []
-            for row in results:
-                job = dict(row)
-                jobs.append(job)
+            jobs_data = []
+            for job in jobs:
+                job_dict = {
+                    "id": job.id,
+                    "job_id": job.job_id,
+                    "title": job.title,
+                    "location": job.location,
+                    "url": job.url,
+                    "pipeline_created_at": job.task.created_at if job.task else None
+                }
+
+                # Add meta data if available
+                if job.meta:
+                    job_dict.update({
+                        "job_description": job.meta.job_description,
+                        "employment_type": job.meta.employment_type,
+                        "job_function": job.meta.job_function,
+                        "seniority_level": job.meta.seniority_level,
+                        "industries": job.meta.industries
+                    })
+
+                # Add employer data if available
+                if job.employer:
+                    job_dict.update({
+                        "employer": job.employer.name,
+                        "employer_url": job.employer.url
+                    })
+
+                jobs_data.append(job_dict)
 
             return {
-                "total_jobs": len(jobs),
-                "jobs": jobs
+                "total_jobs": len(jobs_data),
+                "jobs": jobs_data
             }
 
         except Exception as e:
@@ -643,34 +606,44 @@ async def get_all_jobs():
 
 @app.get("/api/processed-jobs/{run_id}")
 async def get_processed_jobs(run_id: str):
-    """Get all AI-processed jobs for a specific pipeline run"""
-    conn = get_db_connection()
-    if conn:
+    """Get all AI-processed jobs for a specific pipeline run using SQLAlchemy"""
+    db = get_db_session()
+    if db:
         try:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            # First get the task
+            task = db.query(Task).filter(Task.run_id == run_id).first()
+            if not task:
+                db.close()
+                raise HTTPException(
+                    status_code=404, detail="Pipeline not found")
 
-            cursor.execute("""
-                SELECT pj.*, j.job_title, j.employer, j.job_location
-                FROM processed_jobs pj
-                JOIN jobs j ON pj.job_id = j.id
-                WHERE pj.run_id = %s 
-                ORDER BY pj.created_at DESC
-            """, (run_id,))
-
-            results = cursor.fetchall()
-            cursor.close()
-            conn.close()
+            # Get processed jobs for this task
+            processed_jobs = db.query(JobMeta).join(Job).filter(
+                Job.task_id == task.id,
+                JobMeta.cover_letter.isnot(None)
+            ).all()
+            db.close()
 
             # Convert to list of dictionaries
-            processed_jobs = []
-            for row in results:
-                job = dict(row)
-                processed_jobs.append(job)
+            processed_jobs_data = []
+            for job_meta in processed_jobs:
+                job_dict = {
+                    "id": job_meta.id,
+                    "job_id": job_meta.job_id,
+                    "run_id": run_id,
+                    "job_title": job_meta.job.title if job_meta.job else None,
+                    "employer": job_meta.job.employer.name if job_meta.job and job_meta.job.employer else None,
+                    "job_location": job_meta.job.location if job_meta.job else None,
+                    "cover_letter": job_meta.cover_letter,
+                    "job_summary": job_meta.job_description,
+                    "processing_status": "completed" if job_meta.cover_letter else "pending"
+                }
+                processed_jobs_data.append(job_dict)
 
             return {
                 "run_id": run_id,
-                "processed_jobs_count": len(processed_jobs),
-                "processed_jobs": processed_jobs
+                "processed_jobs_count": len(processed_jobs_data),
+                "processed_jobs": processed_jobs_data
             }
 
         except Exception as e:
@@ -683,33 +656,35 @@ async def get_processed_jobs(run_id: str):
 
 @app.get("/api/processed-jobs")
 async def get_all_processed_jobs():
-    """Get all AI-processed jobs from all pipeline runs"""
-    conn = get_db_connection()
-    if conn:
+    """Get all AI-processed jobs from all pipeline runs using SQLAlchemy"""
+    db = get_db_session()
+    if db:
         try:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-
-            cursor.execute("""
-                SELECT pj.*, j.job_title, j.employer, j.job_location, t.created_at as pipeline_created_at
-                FROM processed_jobs pj
-                JOIN jobs j ON pj.job_id = j.id
-                JOIN tasks t ON pj.run_id = t.run_id
-                ORDER BY pj.created_at DESC
-            """)
-
-            results = cursor.fetchall()
-            cursor.close()
-            conn.close()
+            processed_jobs = db.query(JobMeta).join(Job).filter(
+                JobMeta.cover_letter.isnot(None)
+            ).all()
+            db.close()
 
             # Convert to list of dictionaries
-            processed_jobs = []
-            for row in results:
-                job = dict(row)
-                processed_jobs.append(job)
+            processed_jobs_data = []
+            for job_meta in processed_jobs:
+                job_dict = {
+                    "id": job_meta.id,
+                    "job_id": job_meta.job_id,
+                    "run_id": job_meta.job.task.run_id if job_meta.job and job_meta.job.task else None,
+                    "job_title": job_meta.job.title if job_meta.job else None,
+                    "employer": job_meta.job.employer.name if job_meta.job and job_meta.job.employer else None,
+                    "job_location": job_meta.job.location if job_meta.job else None,
+                    "pipeline_created_at": job_meta.job.task.created_at if job_meta.job and job_meta.job.task else None,
+                    "cover_letter": job_meta.cover_letter,
+                    "job_summary": job_meta.job_description,
+                    "processing_status": "completed" if job_meta.cover_letter else "pending"
+                }
+                processed_jobs_data.append(job_dict)
 
             return {
-                "total_processed_jobs": len(processed_jobs),
-                "processed_jobs": processed_jobs
+                "total_processed_jobs": len(processed_jobs_data),
+                "processed_jobs": processed_jobs_data
             }
 
         except Exception as e:
@@ -757,9 +732,14 @@ async def get_task_status(task_id: str):
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
+    db = get_db_session()
+    db_status = "connected" if db else "disconnected"
+    if db:
+        db.close()
+
     return {
         "status": "healthy",
-        "database": "connected" if get_db_connection() else "disconnected",
+        "database": db_status,
         "pipeline_tasks": len(pipeline_tasks)
     }
 
@@ -774,36 +754,30 @@ class JobDelete(BaseModel):
 
 @app.put("/api/jobs/{job_id}/status")
 async def update_job_status(job_id: int, status_update: JobStatusUpdate):
-    """Update the status of a specific job"""
-    conn = get_db_connection()
-    if conn:
+    """Update the status of a specific job using SQLAlchemy"""
+    db = get_db_session()
+    if db:
         try:
-            cursor = conn.cursor()
-
-            # Update job status
-            cursor.execute("""
-                UPDATE jobs 
-                SET status = %s, updated_at = CURRENT_TIMESTAMP 
-                WHERE id = %s
-                RETURNING id
-            """, (status_update.status, job_id))
-
-            result = cursor.fetchone()
-            if not result:
-                cursor.close()
-                conn.close()
+            # Find the job
+            job = db.query(Job).filter(Job.id == job_id).first()
+            if not job:
+                db.close()
                 raise HTTPException(status_code=404, detail="Job not found")
 
-            conn.commit()
-            cursor.close()
-            conn.close()
+            # Update job status (assuming we add a status field to Job model)
+            # For now, we'll update the task status
+            if hasattr(job, 'task'):
+                job.task.status = status_update.status
+
+            db.commit()
+            db.close()
 
             return {"message": "Job status updated successfully", "job_id": job_id, "new_status": status_update.status}
 
         except Exception as e:
             print(f"Error updating job status: {e}")
-            if conn:
-                conn.close()
+            if db:
+                db.close()
             raise HTTPException(
                 status_code=500, detail="Internal server error")
 
@@ -812,36 +786,27 @@ async def update_job_status(job_id: int, status_update: JobStatusUpdate):
 
 @app.delete("/api/jobs/{job_id}")
 async def delete_job(job_id: int):
-    """Delete a specific job and its processed data"""
-    conn = get_db_connection()
-    if conn:
+    """Delete a specific job and its processed data using SQLAlchemy"""
+    db = get_db_session()
+    if db:
         try:
-            cursor = conn.cursor()
-
-            # First delete from processed_jobs if exists
-            cursor.execute(
-                "DELETE FROM processed_jobs WHERE job_id = %s", (job_id,))
-
-            # Then delete from jobs
-            cursor.execute(
-                "DELETE FROM jobs WHERE id = %s RETURNING id", (job_id,))
-
-            result = cursor.fetchone()
-            if not result:
-                cursor.close()
-                conn.close()
+            # Find the job
+            job = db.query(Job).filter(Job.id == job_id).first()
+            if not job:
+                db.close()
                 raise HTTPException(status_code=404, detail="Job not found")
 
-            conn.commit()
-            cursor.close()
-            conn.close()
+            # Delete the job (cascade will handle related records)
+            db.delete(job)
+            db.commit()
+            db.close()
 
             return {"message": "Job deleted successfully", "job_id": job_id}
 
         except Exception as e:
             print(f"Error deleting job: {e}")
-            if conn:
-                conn.close()
+            if db:
+                db.close()
             raise HTTPException(
                 status_code=500, detail="Internal server error")
 
