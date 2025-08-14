@@ -13,7 +13,7 @@ from celery_app import celery_app
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.exc import SQLAlchemyError
-from models import Base, Task, Job, JobMeta, Employer
+from models.data import Base, Task, Job, JobMeta, Employer
 
 app = FastAPI(title="FindAJob AI Pipeline API", version="1.0.0")
 
