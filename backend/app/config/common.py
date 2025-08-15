@@ -29,7 +29,8 @@ class AppConfig(BaseSettings):
         env_ignore_empty=True,
     )
     DOMAIN: Annotated[str, Field(alias="DOMAIN")] = "localhost"
-    ENVIRONMENT: Annotated[Literal["local", "production"], Field(alias="ENVIRONMENT")] = "local"
+    ENVIRONMENT: Annotated[Literal["local", "production"],
+                           Field(alias="ENVIRONMENT")] = "local"
 
     @computed_field
     @property
@@ -54,12 +55,16 @@ class AppConfig(BaseSettings):
     def SQLALCHEMY_DATABASE_URI(self) -> PostgresDsn:
         return MultiHostUrl.build(
             scheme="postgresql+psycopg2",
-            user=self.DB_USER,
+            username=self.DB_USER,
             password=self.DB_PASSWORD,
             host=self.DB_HOST,
             port=self.DB_PORT,
             path=self.DB_NAME,
         )
 
-    CELERY_BROKER_URL: Annotated[str, Field(alias="CELERY_BROKER_URL")] = "redis://redis:6379/0"
-    CELERY_RESULT_BACKEND: Annotated[str, Field(alias="CELERY_RESULT_BACKEND")] = "redis://redis:6379/0"
+    CELERY_BROKER_URL: Annotated[str, Field(
+        alias="CELERY_BROKER_URL")] = "redis://redis:6379/0"
+    CELERY_RESULT_BACKEND: Annotated[str, Field(
+        alias="CELERY_RESULT_BACKEND")] = "redis://redis:6379/0"
+    WEBHOOK_BASE_URL: Annotated[str, Field(
+        alias="WEBHOOK_BASE_URL")] = "http://backend:8000"

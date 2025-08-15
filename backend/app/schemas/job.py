@@ -26,7 +26,8 @@ class JobMeta(BaseModel):
     seniority_level: str
     employment_type: str
     job_function: str
-    ai_metadata: JobAiMetadata
+    ai_metadata: JobAiSummary
+    cover_letter: JobAiCoverLetter
 
 
 class Job(BaseModel):

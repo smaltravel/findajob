@@ -6,7 +6,7 @@ celery_app = Celery(
     "findajob",
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
-    include=["app.tasks"],
+    include=["app.tasks.search"],
 )
 
 celery_app.conf.update(
@@ -20,7 +20,7 @@ celery_app.conf.update(
     task_soft_time_limit=25 * 60,  # 25 minutes
     worker_prefetch_multiplier=1,
     worker_max_tasks_per_child=1000,
-    result_expires=3600,  # 1 hour  
+    result_expires=3600,  # 1 hour
 )
 
 if __name__ == "__main__":

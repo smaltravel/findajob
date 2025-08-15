@@ -24,7 +24,6 @@ class GoogleAIProvider(LLM):
             model=self.config.model,
             contents=prompt,
             config=genai.types.GenerateContentConfig(
-                temperature=self.config.temperature,
                 system_instruction=[l for l in self.system_prompt.split(
                     "\n") if len(l.strip()) > 0],
                 response_schema=format.model_json_schema(),

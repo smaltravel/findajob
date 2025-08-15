@@ -39,14 +39,8 @@ services:
     container_name: findajob_backend
     ports:
       - "8000:8000"
-    environment:
-      - DB_HOST=postgres
-      - DB_DB=findajob
-      - DB_USER=postgres
-      - DB_PASSWORD=password
-      - DB_PORT=5432
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    env_file:
+      - ./backend/.env.local
     depends_on:
       postgres:
         condition: service_healthy
@@ -54,20 +48,14 @@ services:
         condition: service_healthy
     networks:
       - findajob_network
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   # Celery Worker for processing tasks
   celery_worker:
     build: ./backend
     container_name: findajob_celery_worker
-    environment:
-      - DB_HOST=postgres
-      - DB_DB=findajob
-      - DB_USER=postgres
-      - DB_PASSWORD=password
-      - DB_PORT=5432
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    env_file:
+      - ./backend/.env.local
     depends_on:
       postgres:
         condition: service_healthy
@@ -75,21 +63,15 @@ services:
         condition: service_healthy
     networks:
       - findajob_network
-    command: celery -A celery_app worker --loglevel=info --concurrency=2
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=2
     restart: unless-stopped
 
   # Celery Beat for scheduled tasks (optional)
   celery_beat:
     build: ./backend
     container_name: findajob_celery_beat
-    environment:
-      - DB_HOST=postgres
-      - DB_DB=findajob
-      - DB_USER=postgres
-      - DB_PASSWORD=password
-      - DB_PORT=5432
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    env_file:
+      - ./backend/.env.local
     depends_on:
       postgres:
         condition: service_healthy
@@ -97,7 +79,7 @@ services:
         condition: service_healthy
     networks:
       - findajob_network
-    command: celery -A celery_app beat --loglevel=info
+    command: celery -A app.celery_app beat --loglevel=info
     restart: unless-stopped
 
   # Nginx for serving frontend

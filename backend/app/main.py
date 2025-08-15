@@ -2,11 +2,16 @@ from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 from app.config.loader import settings
 from app.routes.job_router import job_router
+from app.routes.search_router import search_router
 
 openapi_tags = [
     {
         "name": "Jobs",
         "description": "Job-related read operations"
+    },
+    {
+        "name": "Search",
+        "description": "Search-related operations"
     }
 ]
 
@@ -26,6 +31,7 @@ if settings.BACKEND_CORS_ORIGINS:
     )
 
 app.include_router(job_router, prefix="/api", tags=["Jobs"])
+app.include_router(search_router, prefix="/api", tags=["Search"])
 
 
 @app.get("/health", tags=["Health Check"])

@@ -18,7 +18,7 @@ COPY --from=builder /app/venv /app/venv
 COPY --from=builder /app/entrypoint.sh /app/entrypoint.sh
 
 # Copy application code
-COPY app/ .
+COPY . .
 
 # Expose port
 EXPOSE 8000

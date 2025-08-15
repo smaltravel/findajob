@@ -3,13 +3,16 @@ from typing import List
 from scrapy import signals
 from scrapy.crawler import CrawlerProcess
 from scrapy.signalmanager import dispatcher
-from app.celery import celery_app
+from celery.utils.log import get_task_logger
+from app.celery_app import celery_app
 from app.core.spiders.linkedin_api_spider import LinkedInSpider
 from app.core.llm.google import GoogleAIProvider
 from app.core.llm.ollama import OllamaProvider
 from app.schemas.job import JobAiCoverLetter, JobAiSummary
 from app.schemas.search import AIProviderConfig, SpiderConfig, CV
 from app.schemas.task import CrawledJobResult, AIProcessedJobResult
+
+logger = get_task_logger(__name__)
 
 
 def _get_user_cv_context(user_cv: dict) -> str:
@@ -67,11 +70,11 @@ def _get_system_prompt(user_cv: dict, job_data: dict) -> str:
 
 
 @celery_app.task
-def crawl_jobs(config: SpiderConfig):
+def crawl_jobs(config: dict):
     """
     Crawl jobs from the web using Scrapy.
     """
-    jobs = []
+    jobs: List[dict] = []
 
     def crawler_results(signal, sender, item, response, spider):
         jobs.append(item)
@@ -91,18 +94,19 @@ def crawl_jobs(config: SpiderConfig):
         },
         "TWISTED_REACTOR": "twisted.internet.asyncioreactor.AsyncioSelectorReactor",
     })
-    process.crawl(LinkedInSpider, **config.model_dump())
+    process.crawl(LinkedInSpider, **config)
     process.start()
 
     return jobs
 
 
 @celery_app.task
-def process_jobs_with_ai(config: AIProviderConfig, provider: str, user_cv: CV, jobs: List[CrawledJobResult]):
+def process_jobs_with_ai(jobs: List[dict], config: dict, provider: str, user_cv: dict):
     """
     Process jobs with AI agent.
     """
-    processed_jobs: List[AIProcessedJobResult] = []
+    processed_jobs: List[dict] = []
+    conf = AIProviderConfig(**config)
 
     # Process each job
     for job in jobs:
@@ -111,9 +115,9 @@ def process_jobs_with_ai(config: AIProviderConfig, provider: str, user_cv: CV, j
 
         # Initialize AI provider based on config
         if provider.lower() == "google":
-            ai_provider = GoogleAIProvider(config, system_prompt)
+            ai_provider = GoogleAIProvider(conf, system_prompt)
         elif provider.lower() == "ollama":
-            ai_provider = OllamaProvider(config, system_prompt)
+            ai_provider = OllamaProvider(conf, system_prompt)
         else:
             raise ValueError(f"Unsupported AI provider: {provider}")
 
@@ -157,12 +161,14 @@ def process_jobs_with_ai(config: AIProviderConfig, provider: str, user_cv: CV, j
             **job,
             job_summary=job_summary,
             cover_letter=cover_letter,
-        ))
+        ).model_dump(mode="json"))
 
     return processed_jobs
 
 
 @celery_app.task
-def handle_search_task(webhook: str, jobs: List[AIProcessedJobResult]):
-    res = requests.post(webhook, json=jobs)
-    res.raise_for_status()
+def handle_search_task(jobs: List[dict], webhook: str):
+    for job in jobs:
+        res = requests.post(webhook, json=AIProcessedJobResult(
+            **job).model_dump(mode="json"))
+        res.raise_for_status()

@@ -1,11 +1,10 @@
-from typing import List
-from pydantic import BaseModel
+from pydantic import BaseModel, Json
 from app.schemas.search import SpiderConfig, AIProviderConfig, CV
 from app.schemas.job import JobAiCoverLetter, JobAiSummary
 
 
 class SearchTaskResponse(BaseModel):
-    id: int
+    id: str
     status: str
 
 
@@ -31,5 +30,5 @@ class CrawledJobResult(BaseModel):
 
 
 class AIProcessedJobResult(CrawledJobResult):
-    job_summary: JobAiSummary
-    cover_letter: JobAiCoverLetter
+    job_summary: str
+    cover_letter: str
