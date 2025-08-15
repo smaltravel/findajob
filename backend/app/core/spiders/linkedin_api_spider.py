@@ -14,10 +14,8 @@ class LinkedInSpider(scrapy.Spider):
     base_search_url = 'https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search'
     base_job_url = 'https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/'
 
-    def __init__(self, keywords: str, location: str, run_id: str, max_jobs: int = 20, seniority: int = 3, *args, **kwargs):
+    def __init__(self, keywords: str, location: str, max_jobs: int = 20, seniority: int = 3, *args, **kwargs):
         super(LinkedInSpider).__init__(*args, **kwargs)
-        # Store run_id for database storage
-        self.run_id = run_id
         # Store max_jobs limit
         self.max_jobs = int(max_jobs) if max_jobs else 20
         # Counter for jobs found in search results
@@ -99,7 +97,7 @@ class LinkedInSpider(scrapy.Spider):
             '//html/body/div': LinkedInSpider.__parse_job_summary,
         }
 
-        data = dict(job_id=response.url.split('/')[-1], run_id=self.run_id)
+        data = dict(job_id=response.url.split('/')[-1])
 
         for path, handler in path_parsers.items():
             data = data | handler(response.xpath(path))

@@ -5,7 +5,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from app.models import Base
 from app.models.employer import Employer
-from app.models.task import Task
 from datetime import datetime
 
 
@@ -60,11 +59,8 @@ class Job(Base):
     title: Mapped[str] = mapped_column(String)
     location: Mapped[str] = mapped_column(String)
     url: Mapped[str] = mapped_column(String)
-    task: Mapped["Task"] = relationship("Task", back_populates="jobs")
-    meta: Mapped["JobMeta"] = relationship(
-        "JobMeta", back_populates="job", uselist=False, cascade="all, delete-orphan")
-    employer: Mapped["Employer"] = relationship(
-        "Employer", back_populates="job", uselist=False, cascade="all, delete-orphan")
+    meta: Mapped["JobMeta"] = relationship("JobMeta")
+    employer: Mapped["Employer"] = relationship("Employer")
 
     def __repr__(self):
         return f"<Job(id={self.id}, title={self.title}, location={self.location})>"
