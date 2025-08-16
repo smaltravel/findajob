@@ -76,6 +76,7 @@ class Job(Base):
     title: Mapped[str] = mapped_column(String)
     location: Mapped[str] = mapped_column(String)
     url: Mapped[str] = mapped_column(String)
+    status: Mapped[str] = mapped_column(String, default="new")
     employer_id: Mapped[int] = mapped_column(
         ForeignKey("employers.id"), nullable=False)
 

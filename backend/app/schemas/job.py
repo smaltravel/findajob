@@ -35,5 +35,6 @@ class Job(BaseModel):
     title: str
     location: str
     url: HttpUrl
+    status: str
     meta: JobMeta
     employer: Employer

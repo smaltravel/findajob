@@ -158,6 +158,49 @@
                     </div>
                 </div>
                 
+                <!-- Status Summary -->
+                <div class="bg-dark-800/50 border border-dark-700/50 rounded-xl p-6">
+                    <div class="flex items-center">
+                        <div class="p-2 bg-green-500/20 rounded-lg">
+                            <svg class="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-400">Applied</p>
+                            <p class="text-2xl font-bold text-white" x-text="stats.appliedJobs">0</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-dark-800/50 border border-dark-700/50 rounded-xl p-6">
+                    <div class="flex items-center">
+                        <div class="p-2 bg-purple-500/20 rounded-lg">
+                            <svg class="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3a4 4 0 118 0v4m-4 6v6m-4-6h8m-8 0H4"></path>
+                            </svg>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-400">Interview</p>
+                            <p class="text-2xl font-bold text-white" x-text="stats.interviewJobs">0</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-dark-800/50 border border-dark-700/50 rounded-xl p-6">
+                    <div class="flex items-center">
+                        <div class="p-2 bg-orange-500/20 rounded-lg">
+                            <svg class="w-6 h-6 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"></path>
+                            </svg>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-400">Offers</p>
+                            <p class="text-2xl font-bold text-white" x-text="stats.offerJobs">0</p>
+                        </div>
+                    </div>
+                </div>
+                
 
                 
 
@@ -186,6 +229,15 @@
                         <option value="Director">Director</option>
                         <option value="Executive">Executive</option>
                     </select>
+                    <select x-model="filters.status" class="bg-dark-700/50 border border-dark-600/50 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <option value="">All Status</option>
+                        <option value="new">New</option>
+                        <option value="applied">Applied</option>
+                        <option value="rejected">Rejected</option>
+                        <option value="interview">Interview</option>
+                        <option value="offer">Offer</option>
+                        <option value="accepted">Accepted</option>
+                    </select>
                 </div>
             </div>
 
@@ -201,6 +253,20 @@
                                     <span class="text-sm text-gray-400" x-text="job?.employer?.name || 'Unknown Company'"></span>
                                     <span class="text-gray-600">•</span>
                                     <span class="text-sm text-gray-400" x-text="job?.location || 'Remote'"></span>
+                                </div>
+                                <!-- Status Badge -->
+                                <div class="flex items-center space-x-2">
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium" 
+                                          :class="{
+                                              'bg-blue-100 text-blue-800': job?.status === 'new',
+                                              'bg-yellow-100 text-yellow-800': job?.status === 'applied',
+                                              'bg-red-100 text-red-800': job?.status === 'rejected',
+                                              'bg-purple-100 text-purple-800': job?.status === 'interview',
+                                              'bg-orange-100 text-orange-800': job?.status === 'offer',
+                                              'bg-green-100 text-green-800': job?.status === 'accepted'
+                                          }">
+                                        <span x-text="job?.status?.charAt(0).toUpperCase() + job?.status?.slice(1) || 'New'"></span>
+                                    </span>
                                 </div>
                             </div>
                             <div class="flex items-center space-x-2">
@@ -260,6 +326,17 @@
                             <div class="flex items-center text-sm">
                                 <span class="text-gray-400 w-20">Function:</span>
                                 <span class="text-white" x-text="job?.meta?.job_function || 'Not specified'"></span>
+                            </div>
+                            <div class="flex items-center text-sm">
+                                <span class="text-gray-400 w-20">Status:</span>
+                                <select @change="updateJobStatus(job.id, $event.target.value)" class="bg-dark-700/50 border border-dark-600/50 rounded px-2 py-1 text-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+                                    <option value="new" :selected="job?.status === 'new'">New</option>
+                                    <option value="applied" :selected="job?.status === 'applied'">Applied</option>
+                                    <option value="rejected" :selected="job?.status === 'rejected'">Rejected</option>
+                                    <option value="interview" :selected="job?.status === 'interview'">Interview</option>
+                                    <option value="offer" :selected="job?.status === 'offer'">Offer</option>
+                                    <option value="accepted" :selected="job?.status === 'accepted'">Accepted</option>
+                                </select>
                             </div>
                         </div>
 
@@ -333,6 +410,17 @@
                                     <div class="flex justify-between">
                                         <span class="text-gray-400">Job Function:</span>
                                         <span class="text-white" x-text="selectedJob?.meta?.job_function || 'Not specified'"></span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-400">Status:</span>
+                                        <select @change="updateJobStatus(selectedJob.id, $event.target.value)" class="bg-dark-700/50 border border-dark-600/50 rounded px-2 py-1 text-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+                                            <option value="new" :selected="selectedJob?.status === 'new'">New</option>
+                                            <option value="applied" :selected="selectedJob?.status === 'applied'">Applied</option>
+                                            <option value="rejected" :selected="selectedJob?.status === 'rejected'">Rejected</option>
+                                            <option value="interview" :selected="selectedJob?.status === 'interview'">Interview</option>
+                                            <option value="offer" :selected="selectedJob?.status === 'offer'">Offer</option>
+                                            <option value="accepted" :selected="selectedJob?.status === 'accepted'">Accepted</option>
+                                        </select>
                                     </div>
                                     <div class="flex justify-between">
                                         <span class="text-gray-400">Industries:</span>
@@ -749,7 +837,8 @@
                 loading: false,
                 filters: {
                     search: '',
-                    seniority: ''
+                    seniority: '',
+                    status: ''
                 },
                 pipelineConfig: {
                     keywords: 'python developer',
@@ -765,7 +854,10 @@
                     cvContentText: '',
                 },
                 stats: {
-                    totalJobs: 0
+                    totalJobs: 0,
+                    appliedJobs: 0,
+                    interviewJobs: 0,
+                    offerJobs: 0
                 },
 
                 init() {
@@ -794,6 +886,10 @@
                     
                     if (this.filters.seniority) {
                         filtered = filtered.filter(job => job.meta?.seniority_level === this.filters.seniority);
+                    }
+                    
+                    if (this.filters.status) {
+                        filtered = filtered.filter(job => job.status === this.filters.status);
                     }
                     
                     return filtered;
@@ -825,6 +921,9 @@
 
                 updateStats() {
                     this.stats.totalJobs = this.jobs.filter(job => job && job.id).length;
+                    this.stats.appliedJobs = this.jobs.filter(job => job && job.id && job.status === 'applied').length;
+                    this.stats.interviewJobs = this.jobs.filter(job => job && job.id && job.status === 'interview').length;
+                    this.stats.offerJobs = this.jobs.filter(job => job && job.id && job.status === 'offer').length;
                 },
 
                 getJobSummary(job) {
@@ -917,6 +1016,40 @@
                 },
 
 
+
+                async updateJobStatus(jobId, newStatus) {
+                    if (!jobId) {
+                        console.error('Cannot update job status: no job ID provided');
+                        return;
+                    }
+                    
+                    try {
+                        const response = await fetch(`/api/jobs/${jobId}/status?status=${newStatus}`, {
+                            method: 'PUT'
+                        });
+                        
+                        if (response.ok) {
+                            // Update local job data
+                            const job = this.jobs.find(j => j?.id === jobId);
+                            if (job) {
+                                job.status = newStatus;
+                            }
+                            
+                            // Update selected job if it's the same one
+                            if (this.selectedJob && this.selectedJob.id === jobId) {
+                                this.selectedJob.status = newStatus;
+                            }
+                            
+                            this.showSuccessMessage('Job status updated successfully');
+                        } else {
+                            console.error('Failed to update job status:', response.status, response.statusText);
+                            this.showErrorMessage('Failed to update job status. Please try again.');
+                        }
+                    } catch (error) {
+                        console.error('Error updating job status:', error);
+                        this.showErrorMessage('Network error while updating job status. Please try again.');
+                    }
+                },
 
                 async deleteJob(jobId) {
                     if (!jobId) {

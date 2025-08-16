@@ -33,6 +33,7 @@ def add_job_entry(db: Session, job_entry: AIProcessedJobResult) -> None:
         title=job_entry.job_title,
         location=job_entry.job_location,
         url=job_entry.job_url,
+        status="new",
         employer_id=employer.id
     )
     db.add(job)
@@ -59,3 +60,13 @@ def delete_job(db: Session, job_id: int) -> None:
         db.delete(db_job)
         db.commit()
     return
+
+
+def update_job_status(db: Session, job_id: int, status: str) -> bool:
+    db_job = get_job(db, job_id)
+    if not db_job:
+        return False
+    
+    db_job.status = status
+    db.commit()
+    return True
