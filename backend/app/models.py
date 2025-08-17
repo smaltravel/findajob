@@ -83,7 +83,7 @@ class Job(Base):
 
     # Use string references for relationships to avoid circular imports
     meta: Mapped["JobMeta"] = relationship(
-        "JobMeta", back_populates="job", uselist=False)
+        "JobMeta", back_populates="job", uselist=False, cascade="all, delete-orphan")
     employer: Mapped["Employer"] = relationship(
         "Employer", back_populates="jobs")
 

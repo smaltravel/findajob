@@ -58,7 +58,13 @@ def add_job_entry(db: Session, job_entry: AIProcessedJobResult) -> None:
 def delete_job(db: Session, job_id: int) -> None:
     db_job = get_job(db, job_id)
     if db_job:
+        # Delete the Job record
         db.delete(db_job)
+        # Check if employer has no more jobs and delete if empty
+        # Use a proper query instead of relationship count
+        remaining_jobs = db.query(Job).filter(Job.employer_id == db_job.employer_id).count()
+        if remaining_jobs == 0:
+            db.delete(db_job.employer)
         db.commit()
     return
 
