@@ -254,7 +254,7 @@
                                     <span class="text-gray-600">•</span>
                                     <span class="text-sm text-gray-400" x-text="job?.location || 'Remote'"></span>
                                 </div>
-                                <!-- Status Badge -->
+                                <!-- Status and Source Badges -->
                                 <div class="flex items-center space-x-2">
                                     <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium" 
                                           :class="{
@@ -298,13 +298,6 @@
                                     </div>
                                 </div>
                                 
-                                <!-- Cover Letter Indicator -->
-                                <div x-show="getCoverLetter(job)" class="flex items-center space-x-1">
-                                    <svg class="w-3 h-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
-                                    </svg>
-                                    <span class="text-xs text-blue-400">Cover letter ready</span>
-                                </div>
                             </div>
                             
                             <!-- No AI Analysis -->
@@ -337,6 +330,10 @@
                                     <option value="offer" :selected="job?.status === 'offer'">Offer</option>
                                     <option value="accepted" :selected="job?.status === 'accepted'">Accepted</option>
                                 </select>
+                            </div>
+                            <div class="flex items-center text-sm">
+                                <span class="text-gray-400 w-20">Source:</span>
+                                <span class="text-white" x-text="job?.source || 'Unknown'"></span>
                             </div>
                         </div>
 
@@ -427,6 +424,10 @@
                                         <span class="text-white" x-text="selectedJob?.employer?.industries || 'Not specified'"></span>
                                     </div>
                                     <div class="flex justify-between">
+                                        <span class="text-gray-400">Source:</span>
+                                        <span class="text-white" x-text="selectedJob?.source || 'Unknown'"></span>
+                                    </div>
+                                    <div class="flex justify-between">
                                         <span class="text-gray-400">Created:</span>
                                         <span class="text-white" x-text="formatDate(selectedJob?.meta?.created_at)"></span>
                                     </div>
@@ -448,7 +449,7 @@
                                     </div>
                                     <div class="flex justify-between">
                                         <span class="text-gray-400">Source:</span>
-                                        <span class="text-white" x-text="selectedJob?.meta?.spider_source || 'Unknown'"></span>
+                                        <span class="text-white" x-text="selectedJob?.source || 'Unknown'"></span>
                                     </div>
                                 </div>
                             </div>

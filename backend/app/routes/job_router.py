@@ -24,6 +24,7 @@ def job_list(db: Session = Depends(get_db)):
             location=job.location,
             url=job.url,
             status=job.status,
+            source=job.source,
             employer=Employer(
                 id=job.employer.id,
                 name=job.employer.name,

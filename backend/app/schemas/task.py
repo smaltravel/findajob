@@ -27,6 +27,7 @@ class CrawledJobResult(BaseModel):
     employment_type: str
     job_function: str
     industries: str
+    source: str
 
 
 class AIProcessedJobResult(CrawledJobResult):

@@ -34,6 +34,7 @@ def add_job_entry(db: Session, job_entry: AIProcessedJobResult) -> None:
         location=job_entry.job_location,
         url=job_entry.job_url,
         status="new",
+        source=job_entry.source,
         employer_id=employer.id
     )
     db.add(job)
