@@ -1,0 +1,104 @@
+services:
+  # Redis for Celery broker and result backend
+  redis:
+    image: redis:7-alpine
+    container_name: findajob_redis
+    ports:
+      - "6379:6379"
+    networks:
+      - findajob_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: findajob_postgres
+    environment:
+      POSTGRES_DB: findajob
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - findajob_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 1s
+      timeout: 1s
+      retries: 5
+
+  # FastAPI Backend
+  backend:
+    build: ./backend
+    container_name: findajob_backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env.local
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - findajob_network
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Celery Worker for processing tasks
+  celery_worker:
+    build: ./backend
+    container_name: findajob_celery_worker
+    env_file:
+      - ./backend/.env.local
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - findajob_network
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=2
+    restart: unless-stopped
+
+  # Celery Beat for scheduled tasks (optional)
+  celery_beat:
+    build: ./backend
+    container_name: findajob_celery_beat
+    env_file:
+      - ./backend/.env.local
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - findajob_network
+    command: celery -A app.celery_app beat --loglevel=info
+    restart: unless-stopped
+
+  # Nginx for serving frontend
+  nginx:
+    image: nginx:alpine
+    container_name: findajob_nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html
+      - ./nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - backend
+    networks:
+      - findajob_network
+
+volumes:
+  postgres_data:
+
+networks:
+  findajob_network:
+    driver: bridge

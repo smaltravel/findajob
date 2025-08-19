@@ -1,8 +1,19 @@
 # virtual environment
 .venv
+venv
 
 # ignore python files
 __pycache__/
 
 # ignore crawler results
 *.jsonl
+
+# VSCode
+.vscode
+
+# Ignore db artifacts
+**/*.db
+**/*.db-journal
+
+# Ignore macos files
+.DS_Store

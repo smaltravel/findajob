@@ -1,0 +1,159 @@
+{
+  "$defs": {
+    "Education": {
+      "description": "Education entry in CV.",
+      "properties": {
+        "degree": {
+          "$ref": "#/$defs/EducationDegree",
+          "description": "Degree of education"
+        },
+        "title": {
+          "description": "Title of the education",
+          "title": "Title",
+          "type": "string"
+        },
+        "institution": {
+          "description": "Institution of the education",
+          "title": "Institution",
+          "type": "string"
+        },
+        "total_months": {
+          "description": "Total months of education",
+          "title": "Total Months",
+          "type": "integer"
+        }
+      },
+      "required": ["degree", "title", "institution", "total_months"],
+      "title": "Education",
+      "type": "object"
+    },
+    "EducationDegree": {
+      "enum": [
+        "bachelor",
+        "master",
+        "phd",
+        "diploma",
+        "college",
+        "high_school",
+        "course"
+      ],
+      "title": "EducationDegree",
+      "type": "string"
+    },
+    "Experience": {
+      "description": "Experience entry in CV.",
+      "properties": {
+        "company": {
+          "description": "Company name",
+          "title": "Company",
+          "type": "string"
+        },
+        "position": {
+          "description": "Job position/title",
+          "title": "Position",
+          "type": "string"
+        },
+        "total_months": {
+          "description": "Total months of experience",
+          "title": "Total Months",
+          "type": "integer"
+        },
+        "description": {
+          "description": "Job description and responsibilities",
+          "title": "Description",
+          "type": "string"
+        }
+      },
+      "required": ["company", "position", "total_months", "description"],
+      "title": "Experience",
+      "type": "object"
+    },
+    "LanguageProficiency": {
+      "enum": [15, 30, 45, 60, 75, 90, 100],
+      "title": "LanguageProficiency",
+      "type": "integer"
+    },
+    "Location": {
+      "description": "Location entry in CV.",
+      "properties": {
+        "country": {
+          "description": "Country",
+          "title": "Country",
+          "type": "string"
+        },
+        "city": { "description": "City", "title": "City", "type": "string" },
+        "location_type": {
+          "$ref": "#/$defs/LocationType",
+          "description": "Type of location"
+        }
+      },
+      "required": ["country", "city", "location_type"],
+      "title": "Location",
+      "type": "object"
+    },
+    "LocationType": {
+      "enum": ["remote", "onsite", "hybrid", "any"],
+      "title": "LocationType",
+      "type": "string"
+    }
+  },
+  "description": "Normalized CV schema.",
+  "properties": {
+    "name": {
+      "description": "Full name of the person",
+      "title": "Name",
+      "type": "string"
+    },
+    "total_experience_months": {
+      "description": "Total months of experience",
+      "title": "Total Experience Months",
+      "type": "integer"
+    },
+    "skills": {
+      "description": "Skills of the person",
+      "items": { "type": "string" },
+      "title": "Skills",
+      "type": "array"
+    },
+    "education": {
+      "description": "Educational background",
+      "items": { "$ref": "#/$defs/Education" },
+      "title": "Education",
+      "type": "array"
+    },
+    "location": {
+      "$ref": "#/$defs/Location",
+      "description": "Location of the person"
+    },
+    "experience": {
+      "description": "Experience of the person",
+      "items": { "$ref": "#/$defs/Experience" },
+      "title": "Experience",
+      "type": "array"
+    },
+    "industries": {
+      "description": "Industries in which the person worked",
+      "items": { "type": "string" },
+      "title": "Industries",
+      "type": "array"
+    },
+    "languages": {
+      "additionalProperties": { "$ref": "#/$defs/LanguageProficiency" },
+      "description": "Languages spoken by the person",
+      "title": "Languages",
+      "type": "object"
+    }
+  },
+  "required": [
+    "name",
+    "total_experience_months",
+    "skills",
+    "education",
+    "location",
+    "experience",
+    "industries",
+    "languages"
+  ],
+  "title": "CV",
+  "type": "object"
+}
