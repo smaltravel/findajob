@@ -3,11 +3,22 @@ from pydantic import BaseModel, HttpUrl
 from app.schemas.employer import Employer
 
 
+class AlignmentScore(BaseModel):
+    """Alignment score between a candidate profile and job requirements."""
+    total: int
+    skills: int
+    education: int
+    experience: int
+    location: int
+    industries: int
+    languages: int
+
+
 class JobAiSummary(BaseModel):
     responsibilities: List[str]
     requirements: List[str]
     opportunity_interest: str
-    background_aligns: int
+    background_aligns: AlignmentScore
     summary: str
 
 
