@@ -322,7 +322,9 @@ class SearchPipeline:
 
         for job in self._crawl():
             self.provider.clear_history()
-            jobs.append(self._process_job_with_ai(job))
+            processed_job = self._process_job_with_ai(job)
+            if processed_job:
+                jobs.append(processed_job)
 
         self._handle_search_task(jobs)
 
@@ -454,7 +456,7 @@ Make it personal, specific to this opportunity, and compelling based on your act
             **job,
             job_summary=job_summary,
             cover_letter=cover_letter,
-        ).model_dump(mode="json")
+        ).model_dump(mode="json") if job_summary and cover_letter else None
 
     def _handle_search_task(self, jobs: List[dict]):
         for job in jobs:

@@ -1,6 +1,6 @@
 from . import LLM
 from logging import Logger
-from typing import List, Union
+from typing import List, Union, Optional
 from google.genai.types import Content, GenerateContentConfig, Part
 from google import genai
 from pydantic import BaseModel, ValidationError
@@ -39,7 +39,7 @@ class GoogleAIProvider(LLM):
     def clear_history(self) -> None:
         self.__history.clear()
 
-    def generate(self, prompt: str, format: BaseModel) -> str:
+    def generate(self, prompt: str, format: BaseModel) -> Optional[str]:
         """Generate text using Google AI API."""
 
         self.logger.info(f"Using generate mode")
@@ -56,9 +56,14 @@ class GoogleAIProvider(LLM):
 
         self._update_history("model", response.text)
 
-        return format.model_validate_json(response.text).model_dump_json()
+        try:
+            return format.model_validate_json(response.text).model_dump_json()
+        except ValidationError as e:
+            self.logger.warning("Unsupported response format")
+            self.logger.debug(f"Response text: {response.text}")
+            return None
 
-    def agent(self, prompt: str, format: BaseModel) -> str:
+    def agent(self, prompt: str, format: BaseModel) -> Optional[str]:
         """Generate text using Google AI API with tools."""
 
         if self.tools is None and self.callable_tools is None:

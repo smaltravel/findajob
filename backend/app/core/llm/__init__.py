@@ -19,9 +19,9 @@ class LLM(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def generate(self, prompt: str, format: BaseModel) -> str:
+    def generate(self, prompt: str, format: BaseModel) -> Optional[str]:
         raise NotImplementedError
 
     @abstractmethod
-    def agent(self, prompt: str, format: BaseModel) -> str:
+    def agent(self, prompt: str, format: BaseModel) -> Optional[str]:
         raise NotImplementedError
